@@ -58,6 +58,7 @@ static const wd_error_info_t WD_ERROR_TABLE[] = {
     { WD_SYS_IO_OSS_STAT_ERROR              , "获取MinIO文件状态异常", 500 },
     { WD_SYS_IO_OSS_UPLOAD_ERROR            , "上传文件到MinIO失败", 500 },
     { WD_SYS_IO_OSS_DELETE_ERROR            , "删除MinIO文件失败", 500 },
+    { WD_VAL_CONFLICT_PERMISSION_CODE_EXISTS, "权限编码已存在", 409 },
 };
 
 const wd_error_info_t *wd_error_lookup(const char *code) {

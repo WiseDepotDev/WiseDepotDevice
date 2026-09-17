@@ -70,6 +70,7 @@ typedef struct {
 #define WD_SYS_IO_OSS_STAT_ERROR                  "SYS-IO-OSS-1003"
 #define WD_SYS_IO_OSS_UPLOAD_ERROR                "SYS-IO-OSS-1004"
 #define WD_SYS_IO_OSS_DELETE_ERROR                "SYS-IO-OSS-1005"
+#define WD_VAL_CONFLICT_PERMISSION_CODE_EXISTS    "VAL-CONFLICT-PERMISSION-1001"
 
 /**
  * @brief 按错误码查表取信息。
