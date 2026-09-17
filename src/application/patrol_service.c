@@ -253,47 +253,33 @@ void patrol_service_clear_token(void) {
 }
 
 /**
- * 简单的JSON字符串提取工具
- */
-static char *extract_json_string(const char *json, const char *key) {
-    if (!json || !key) return NULL;
-    
-    char search_key[256];
-    snprintf(search_key, sizeof(search_key), "\"%s\"", key);
-    
-    char *p = strstr(json, search_key);
-    if (!p) return NULL;
-    
-    p = strchr(p, ':');
-    if (!p) return NULL;
-    
-    char *start = strchr(p, '"');
-    if (!start) return NULL;
-    start++;
-    
-    char *end = strchr(start, '"');
-    if (!end) return NULL;
-    
-    size_t len = end - start;
-    char *val = xmalloc(len + 1);
-    strncpy(val, start, len);
-    val[len] = '\0';
-    
-    return val;
-}
-
-/**
- * 检查响应是否成功
+ * 检查响应是否成功。
+ *
+ * 统一走信封解析（common/envelope.h）：只认 payload.code 与生成器产出的成功码，
+ * 不再接受历史上的 "00000"/"0" 等兼容分支（STD-ERR-02：单一错误出口）。
+ *
+ * @param json 服务端响应报文
+ * @return true 表示业务成功
  */
 static bool is_response_success(const char *json) {
-    if (!json) return false;
-    
-    char *code = extract_json_string(json, "code");
-    if (!code) return false;
-    
-    bool success = (strcmp(code, "00000") == 0 || strcmp(code, "0") == 0);
-    xfree(code);
-    return success;
+    wd_envelope_t envelope;
+    bool ok;
+
+    if (json == NULL) {
+        return false;
+    }
+    if (envelope_parse(json, &envelope) != WD_ENVELOPE_OK) {
+        return false;
+    }
+
+    ok = (envelope_is_success(&envelope) != 0);
+    if (!ok) {
+        LOG_WARN("Response business failed: code=%s, errorCode=%s",
+                 envelope_code(&envelope) != NULL ? envelope_code(&envelope) : "(null)",
+                 envelope_error_code(&envelope) != NULL ? envelope_error_code(&envelope) : "(null)");
+    }
+    envelope_free(&envelope);
+    return ok;
 }
 
 /**

@@ -1,4 +1,5 @@
 #include "domain/inventory_manager.h"
+#include "common/envelope.h"
 #include "common/logger.h"
 #include "common/xmalloc.h"
 #include <stdio.h>
@@ -35,92 +36,62 @@ void inventory_mgr_init(void) {
 }
 
 int inventory_load_expected(const char *json_str) {
-    if (!json_str) return -1;
-    
-    cJSON *root = cJSON_Parse(json_str);
-    if (!root) {
-        LOG_ERROR("Failed to parse expected inventory JSON");
-        return -1;
-    }
-    
-    cJSON *data_array = NULL;
-    
-    /* 1) 服务端统一格式: { "header":..., "payload": { "code": "RES-0000", "data": { "total": N, "rows": [...] } } } */
-    if (cJSON_IsObject(root)) {
-        cJSON *payload = cJSON_GetObjectItemCaseSensitive(root, "payload");
-        if (payload && cJSON_IsObject(payload)) {
-            cJSON *code = cJSON_GetObjectItemCaseSensitive(payload, "code");
-            int code_ok = (code && cJSON_IsString(code) &&
-                (strcmp(code->valuestring, "RES-0000") == 0 || strcmp(code->valuestring, "00000") == 0));
-            if (code_ok) {
-                cJSON *p_data = cJSON_GetObjectItemCaseSensitive(payload, "data");
-                if (p_data && cJSON_IsArray(p_data)) {
-                    data_array = p_data;
-                } else if (p_data && cJSON_IsObject(p_data)) {
-                    /* 分页格式: data 为对象，列表在 data.rows */
-                    cJSON *rows = cJSON_GetObjectItemCaseSensitive(p_data, "rows");
-                    if (rows && cJSON_IsArray(rows)) {
-                        data_array = rows;
-                    }
-                }
-            }
-        }
-    }
-    
-    /* 2) 兼容旧格式: 根节点直接带 code + data，或 data 为分页对象带 rows */
-    if (!cJSON_IsArray(data_array) && cJSON_IsObject(root)) {
-        cJSON *code = cJSON_GetObjectItemCaseSensitive(root, "code");
-        if (code && cJSON_IsString(code) &&
-            (strcmp(code->valuestring, "RES-0000") == 0 || strcmp(code->valuestring, "00000") == 0)) {
-            cJSON *data_node = cJSON_GetObjectItemCaseSensitive(root, "data");
-            if (data_node && cJSON_IsArray(data_node)) {
-                data_array = data_node;
-            } else if (data_node && cJSON_IsObject(data_node)) {
-                cJSON *rows = cJSON_GetObjectItemCaseSensitive(data_node, "rows");
-                if (rows && cJSON_IsArray(rows)) {
-                    data_array = rows;
-                }
-            }
-        }
-    }
-    
-    if (!cJSON_IsArray(data_array)) {
-        LOG_WARN("Expected inventory data is not an array");
-        cJSON_Delete(root);
-        return -1;
-    }
-    
-    product_count = 0;
+    wd_envelope_t envelope;
+    cJSON *rows = NULL;
     cJSON *item = NULL;
-    cJSON_ArrayForEach(item, data_array) {
-        if (product_count >= MAX_EXPECTED_PRODUCTS) break;
-        
-        cJSON *productId = cJSON_GetObjectItemCaseSensitive(item, "productId");
-        cJSON *productName = cJSON_GetObjectItemCaseSensitive(item, "productName");
-        cJSON *productCode = cJSON_GetObjectItemCaseSensitive(item, "productCode");
-        cJSON *quantity = cJSON_GetObjectItemCaseSensitive(item, "quantity");
-        
-        if (cJSON_IsString(productCode) && productCode->valuestring) {
-            expected_products[product_count].productId = (productId && cJSON_IsNumber(productId)) ? (long)productId->valuedouble : 0;
-            
-            if (cJSON_IsString(productName) && productName->valuestring) {
-                strncpy(expected_products[product_count].productName, productName->valuestring, 127);
-                expected_products[product_count].productName[127] = '\0';
-            } else {
-                expected_products[product_count].productName[0] = '\0';
-            }
-            
-            strncpy(expected_products[product_count].productCode, productCode->valuestring, 64);
-            expected_products[product_count].productCode[64] = '\0';
-            
-            expected_products[product_count].quantity = (quantity && cJSON_IsNumber(quantity)) ? quantity->valueint : 1;
-            expected_products[product_count].scanned_count = 0;
-            
-            product_count++;
-        }
+    int rc;
+
+    if (json_str == NULL) {
+        return -1;
     }
-    
-    cJSON_Delete(root);
+
+    /* 统一信封解析：唯一解析入口，不再兼容「根节点直接带 code」等历史格式 */
+    rc = envelope_parse(json_str, &envelope);
+    if (rc != WD_ENVELOPE_OK) {
+        LOG_WARN("Expected inventory: envelope parse failed, rc=%d", rc);
+        return -1;
+    }
+    if (!envelope_is_success(&envelope)) {
+        LOG_WARN("Expected inventory: business failed, code=%s, errorCode=%s",
+                 envelope_code(&envelope) != NULL ? envelope_code(&envelope) : "(null)",
+                 envelope_error_code(&envelope) != NULL ? envelope_error_code(&envelope) : "(null)");
+        envelope_free(&envelope);
+        return -1;
+    }
+
+    rows = envelope_data_rows(&envelope);
+    if (!cJSON_IsArray(rows)) {
+        LOG_WARN("Expected inventory: no list payload in data");
+        envelope_free(&envelope);
+        return -1;
+    }
+
+    product_count = 0;
+    cJSON_ArrayForEach(item, rows) {
+        const char *product_code = envelope_str(item, "productCode");
+        const char *product_name = envelope_str(item, "productName");
+
+        if (product_count >= MAX_EXPECTED_PRODUCTS) {
+            break;
+        }
+        if (product_code == NULL) {
+            continue;
+        }
+
+        expected_products[product_count].productId = envelope_int(item, "productId", 0);
+        (void)snprintf(expected_products[product_count].productName,
+                       sizeof(expected_products[product_count].productName),
+                       "%s", product_name != NULL ? product_name : "");
+        (void)snprintf(expected_products[product_count].productCode,
+                       sizeof(expected_products[product_count].productCode),
+                       "%s", product_code);
+        expected_products[product_count].quantity = (int)envelope_int(item, "quantity", 1);
+        expected_products[product_count].scanned_count = 0;
+
+        product_count++;
+    }
+
+    envelope_free(&envelope);
     LOG_INFO("Loaded %zu expected products", product_count);
     return 0;
 }
