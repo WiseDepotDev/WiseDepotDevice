@@ -1,0 +1,25 @@
+# ===== 构建产物（禁止入库）=====
+# Makefile 输出
+obj/
+bin/
+coverage/
+*.o
+*.a
+*.so
+*.gcno
+*.gcda
+*.gcov
+
+# 依赖降级 pom（由 shade 插件生成）
+dependency-reduced-pom.xml
+
+# ===== 运行时文件 =====
+*.log
+*.pid
+
+# ===== IDE / 系统 =====
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,14 @@
+# 统一行尾与文本属性（STD-CODE-04）
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.zip binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.so binary
+*.o binary
+*.a binary

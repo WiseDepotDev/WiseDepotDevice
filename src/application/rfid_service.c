@@ -1,0 +1,274 @@
+#include "application/rfid_service.h"
+#include "infrastructure/rfid_driver.h"
+#include "domain/inventory_manager.h"
+#include "common/config.h"
+#include "common/logger.h"
+#include "common/xmalloc.h"
+#include "common/utils.h"
+#include "common/crypto.h"
+#include "infrastructure/http_client.h"
+#include "infrastructure/mqtt_client.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <time.h>
+
+#define SIGNATURE_SECRET "wise-depot-api-signature-secret-key-2024"
+
+static rfid_service_config_t service_config;
+static bool is_initialized = false;
+static bool is_busy = false;
+static pthread_mutex_t service_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+int rfid_service_init(const rfid_service_config_t *config) {
+    if (!config) return -1;
+    
+    pthread_mutex_lock(&service_mutex);
+    if (is_initialized) {
+        pthread_mutex_unlock(&service_mutex);
+        return 0;
+    }
+    
+    memcpy(&service_config, config, sizeof(rfid_service_config_t));
+    
+    // Init Driver
+    rfid_config_t driver_config;
+    memset(&driver_config, 0, sizeof(driver_config));
+    snprintf(driver_config.serial_port, sizeof(driver_config.serial_port), "%s", config->serial_port);
+    driver_config.baudrate = config->baudrate;
+    driver_config.timeout_ms = 1000;
+    driver_config.max_retries = 3;
+    
+    if (rfid_init(&driver_config) != 0) {
+        LOG_ERROR("Failed to init RFID driver");
+        pthread_mutex_unlock(&service_mutex);
+        return -1;
+    }
+    
+    // Set to Answer Mode
+    if (rfid_set_mode_response() != 0) {
+        LOG_ERROR("Failed to set RFID mode");
+        // Continue anyway?
+    }
+    
+    // Init Manager
+    inventory_mgr_init();
+    
+    is_initialized = true;
+    pthread_mutex_unlock(&service_mutex);
+    LOG_INFO("RFID Service Initialized");
+    return 0;
+}
+
+void rfid_service_cleanup(void) {
+    pthread_mutex_lock(&service_mutex);
+    if (is_initialized) {
+        rfid_close();
+        is_initialized = false;
+    }
+    pthread_mutex_unlock(&service_mutex);
+}
+
+bool rfid_service_is_busy(void) {
+    bool busy;
+    pthread_mutex_lock(&service_mutex);
+    busy = is_busy;
+    pthread_mutex_unlock(&service_mutex);
+    return busy;
+}
+
+static int fetch_expected_inventory(void) {
+    if (!service_config.server_url) return -1;
+    
+    char url[1024];
+    
+    // Generate Signature
+    char timestamp[20];
+    snprintf(timestamp, sizeof(timestamp), "%ld", (long)time(NULL)); 
+    
+    char nonce[32];
+    snprintf(nonce, sizeof(nonce), "%s%d", timestamp, rand());
+    
+    const char *uri_path = "/api/inventories/all";
+    
+    // Build sorted query string with all params: nonce, pageSize, timestamp
+    char query_string[512];
+    snprintf(query_string, sizeof(query_string), "nonce=%s&pageSize=10000&timestamp=%s", nonce, timestamp);
+    
+    // Generate signature string: METHOD\nURI\nsortedQueryString
+    char string_to_sign[2048];
+    snprintf(string_to_sign, sizeof(string_to_sign), "GET\n%s\n%s", uri_path, query_string);
+    
+    LOG_INFO("String to sign: %s", string_to_sign);
+    
+    unsigned char hmac_result[32];
+    hmac_sha256((const unsigned char *)SIGNATURE_SECRET, strlen(SIGNATURE_SECRET), (const unsigned char *)string_to_sign, strlen(string_to_sign), hmac_result);
+    
+    size_t sig_len = 0;
+    char *signature = base64_encode(hmac_result, 32, &sig_len);
+    
+    LOG_INFO("Generated signature: %s", signature);
+    
+    char header_sign[256];
+    char header_time[64];
+    char header_nonce[64];
+    
+    snprintf(header_sign, sizeof(header_sign), "X-Signature: %s", signature);
+    snprintf(header_time, sizeof(header_time), "X-Timestamp: %s", timestamp);
+    snprintf(header_nonce, sizeof(header_nonce), "X-Nonce: %s", nonce);
+    
+    LOG_INFO("Headers: %s, %s, %s", header_sign, header_time, header_nonce);
+    
+    const char *headers[] = {
+        "Content-Type: application/json",
+        header_sign,
+        header_time,
+        header_nonce
+    };
+    
+    snprintf(url, sizeof(url), "%s%s?%s", service_config.server_url, uri_path, query_string);
+    HttpResponse *resp = http_get(url, headers, 4);
+    
+    xfree(signature);
+    
+    if (!resp) {
+        LOG_ERROR("Failed to fetch expected inventory");
+        return -1;
+    }
+    
+    if (resp->status_code != 200 || !resp->body) {
+        LOG_ERROR("Server returned error: %d", resp->status_code);
+        http_response_free(resp);
+        return -1;
+    }
+    
+    int ret = inventory_load_expected(resp->body);
+    http_response_free(resp);
+    return ret;
+}
+
+static void upload_report(const inventory_report_t *report, const char *task_id) {
+    char *json = inventory_report_to_json(report, task_id);
+    if (!json) return;
+    
+    // Try MQTT first
+    if (service_config.mqtt_topic && mqtt_client_is_connected()) {
+        if (mqtt_client_publish(service_config.mqtt_topic, json, 1, 0) == 0) {
+            // LOG_INFO("Report uploaded via MQTT");
+            xfree(json);
+            return;
+        }
+    }
+    
+    // Try HTTP if MQTT failed
+    if (service_config.server_url) {
+        char url[256];
+        snprintf(url, sizeof(url), "%s/api/inspection/report", service_config.server_url);
+        const char *headers[] = {"Content-Type: application/json"};
+        
+        HttpResponse *resp = http_post(url, json, headers, 1);
+        if (resp) {
+            if (resp->status_code == 200 || resp->status_code == 201) {
+                // LOG_INFO("Report uploaded via HTTP");
+                http_response_free(resp);
+                xfree(json);
+                return;
+            }
+            http_response_free(resp);
+        }
+    }
+    
+    // If all failed, cache it
+    LOG_WARN("Upload failed, caching report");
+    inventory_cache_save(report); // Might need to update cache to store task_id
+    xfree(json);
+}
+
+int rfid_service_fetch_expected_inventory(void) {
+    if (!is_initialized) return -1;
+    return fetch_expected_inventory();
+}
+
+int rfid_service_scan_only(rfid_tag_t *tags, int max_count) {
+    if (!tags || max_count <= 0) return -1;
+    pthread_mutex_lock(&service_mutex);
+    if (!is_initialized) {
+        pthread_mutex_unlock(&service_mutex);
+        return -1;
+    }
+    int count = (int)rfid_inventory(tags, (size_t)max_count);
+    pthread_mutex_unlock(&service_mutex);
+    return count;
+}
+
+void rfid_service_upload_inspection_report(const inventory_report_t *report, const char *task_id) {
+    if (!report) return;
+    upload_report(report, task_id);
+}
+
+int rfid_service_run_cycle(const char *task_id) {
+    pthread_mutex_lock(&service_mutex);
+    if (!is_initialized || is_busy) {
+        pthread_mutex_unlock(&service_mutex);
+        return -1;
+    }
+    is_busy = true;
+    pthread_mutex_unlock(&service_mutex);
+    
+    // LOG_INFO("Starting Inventory Cycle"); // Removed to prevent log spamming
+    
+    // 1. Scan
+    #define MAX_SCAN_TAGS 1000
+    // Use xcalloc to ensure zero-initialization (critical for tid_len)
+    rfid_tag_t *tags = (rfid_tag_t *)xcalloc(MAX_SCAN_TAGS, sizeof(rfid_tag_t));
+    int count = rfid_inventory(tags, MAX_SCAN_TAGS);
+    
+    if (count < 0) {
+        LOG_ERROR("Inventory Scan Failed");
+        xfree(tags);
+        pthread_mutex_lock(&service_mutex);
+        is_busy = false;
+        pthread_mutex_unlock(&service_mutex);
+        return -1;
+    }
+    
+    // Log only when tags are found, and only display the card numbers (EPC)
+    if (count > 0) {
+        for (int i = 0; i < count; i++) {
+            char epc_str[65];
+            bytes_to_hex(tags[i].epc, tags[i].epc_len, epc_str);
+            LOG_INFO("Scanned Tag EPC: %s", epc_str);
+        }
+    }
+    
+    // 2. Fetch Expected
+    // Note: If fetch fails, we assume empty expected list? Or abort?
+    // Requirement: "Server returns... then compare"
+    // If we can't get list, we probably can't do "Loss" detection, but can do "Surplus" (everything is surplus).
+    // Let's try to fetch, if fail, maybe use cached expected list? (Not implemented)
+    // For now, if fetch fails, we warn and proceed with empty list (or last loaded).
+    if (fetch_expected_inventory() != 0) {
+        // LOG_WARN("Could not fetch expected inventory, proceeding with current/empty list"); // Reduce spam
+    }
+    
+    // 3. Compare
+    inventory_report_t *report = inventory_process_scan(tags, count);
+    xfree(tags); // Done with raw tags
+    
+    // 4. Upload
+    if (count > 0 || report->total_expected > 0) {
+        upload_report(report, task_id);
+    }
+    
+    // Cleanup
+    inventory_free_report(report);
+    
+    pthread_mutex_lock(&service_mutex);
+    is_busy = false;
+    pthread_mutex_unlock(&service_mutex);
+    
+    // LOG_INFO("Inventory Cycle Completed"); // Removed to prevent log spamming
+    return 0;
+}

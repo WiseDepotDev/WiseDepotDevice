@@ -1,0 +1,329 @@
+#include "domain/inventory_manager.h"
+#include "common/logger.h"
+#include "common/xmalloc.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#define CACHE_FILE "inventory_cache.json"
+#define MAX_EXPECTED_PRODUCTS 1000
+
+// Internal structure for expected products
+typedef struct {
+    long productId;
+    char productName[128];
+    char productCode[65];
+    int quantity;
+    int scanned_count;
+} expected_product_t;
+
+static expected_product_t *expected_products = NULL;
+static size_t product_count = 0;
+
+// Helper to convert bytes to hex string
+static void bytes_to_hex(const uint8_t *bytes, size_t len, char *out) {
+    for (size_t i = 0; i < len; i++) {
+        sprintf(out + i * 2, "%02X", bytes[i]);
+    }
+    out[len * 2] = '\0';
+}
+
+void inventory_mgr_init(void) {
+    expected_products = (expected_product_t *)xmalloc(sizeof(expected_product_t) * MAX_EXPECTED_PRODUCTS);
+    product_count = 0;
+}
+
+int inventory_load_expected(const char *json_str) {
+    if (!json_str) return -1;
+    
+    cJSON *root = cJSON_Parse(json_str);
+    if (!root) {
+        LOG_ERROR("Failed to parse expected inventory JSON");
+        return -1;
+    }
+    
+    cJSON *data_array = NULL;
+    
+    /* 1) 服务端统一格式: { "header":..., "payload": { "code": "RES-0000", "data": { "total": N, "rows": [...] } } } */
+    if (cJSON_IsObject(root)) {
+        cJSON *payload = cJSON_GetObjectItemCaseSensitive(root, "payload");
+        if (payload && cJSON_IsObject(payload)) {
+            cJSON *code = cJSON_GetObjectItemCaseSensitive(payload, "code");
+            int code_ok = (code && cJSON_IsString(code) &&
+                (strcmp(code->valuestring, "RES-0000") == 0 || strcmp(code->valuestring, "00000") == 0));
+            if (code_ok) {
+                cJSON *p_data = cJSON_GetObjectItemCaseSensitive(payload, "data");
+                if (p_data && cJSON_IsArray(p_data)) {
+                    data_array = p_data;
+                } else if (p_data && cJSON_IsObject(p_data)) {
+                    /* 分页格式: data 为对象，列表在 data.rows */
+                    cJSON *rows = cJSON_GetObjectItemCaseSensitive(p_data, "rows");
+                    if (rows && cJSON_IsArray(rows)) {
+                        data_array = rows;
+                    }
+                }
+            }
+        }
+    }
+    
+    /* 2) 兼容旧格式: 根节点直接带 code + data，或 data 为分页对象带 rows */
+    if (!cJSON_IsArray(data_array) && cJSON_IsObject(root)) {
+        cJSON *code = cJSON_GetObjectItemCaseSensitive(root, "code");
+        if (code && cJSON_IsString(code) &&
+            (strcmp(code->valuestring, "RES-0000") == 0 || strcmp(code->valuestring, "00000") == 0)) {
+            cJSON *data_node = cJSON_GetObjectItemCaseSensitive(root, "data");
+            if (data_node && cJSON_IsArray(data_node)) {
+                data_array = data_node;
+            } else if (data_node && cJSON_IsObject(data_node)) {
+                cJSON *rows = cJSON_GetObjectItemCaseSensitive(data_node, "rows");
+                if (rows && cJSON_IsArray(rows)) {
+                    data_array = rows;
+                }
+            }
+        }
+    }
+    
+    if (!cJSON_IsArray(data_array)) {
+        LOG_WARN("Expected inventory data is not an array");
+        cJSON_Delete(root);
+        return -1;
+    }
+    
+    product_count = 0;
+    cJSON *item = NULL;
+    cJSON_ArrayForEach(item, data_array) {
+        if (product_count >= MAX_EXPECTED_PRODUCTS) break;
+        
+        cJSON *productId = cJSON_GetObjectItemCaseSensitive(item, "productId");
+        cJSON *productName = cJSON_GetObjectItemCaseSensitive(item, "productName");
+        cJSON *productCode = cJSON_GetObjectItemCaseSensitive(item, "productCode");
+        cJSON *quantity = cJSON_GetObjectItemCaseSensitive(item, "quantity");
+        
+        if (cJSON_IsString(productCode) && productCode->valuestring) {
+            expected_products[product_count].productId = (productId && cJSON_IsNumber(productId)) ? (long)productId->valuedouble : 0;
+            
+            if (cJSON_IsString(productName) && productName->valuestring) {
+                strncpy(expected_products[product_count].productName, productName->valuestring, 127);
+                expected_products[product_count].productName[127] = '\0';
+            } else {
+                expected_products[product_count].productName[0] = '\0';
+            }
+            
+            strncpy(expected_products[product_count].productCode, productCode->valuestring, 64);
+            expected_products[product_count].productCode[64] = '\0';
+            
+            expected_products[product_count].quantity = (quantity && cJSON_IsNumber(quantity)) ? quantity->valueint : 1;
+            expected_products[product_count].scanned_count = 0;
+            
+            product_count++;
+        }
+    }
+    
+    cJSON_Delete(root);
+    LOG_INFO("Loaded %zu expected products", product_count);
+    return 0;
+}
+
+inventory_report_t *inventory_process_scan(const rfid_tag_t *scanned_tags, size_t count) {
+    inventory_report_t *report = (inventory_report_t *)xcalloc(1, sizeof(inventory_report_t));
+    
+    report->total_scanned = (int)count;
+    report->total_expected = 0;
+    for(size_t i=0; i<product_count; i++) {
+        report->total_expected += expected_products[i].quantity;
+        expected_products[i].scanned_count = 0; // Reset
+    }
+    
+    // Allocate items (scanned only)
+    report->items = (inventory_item_t *)xcalloc(count > 0 ? count : 1, sizeof(inventory_item_t));
+    report->item_count = 0;
+    
+    // Process Scanned Tags
+    for (size_t i = 0; i < count; i++) {
+        char epc_str[65];
+        char tid_str[65];
+        bytes_to_hex(scanned_tags[i].epc, scanned_tags[i].epc_len, epc_str);
+        bytes_to_hex(scanned_tags[i].tid, scanned_tags[i].tid_len, tid_str);
+        
+        bool found = false;
+        for (size_t j = 0; j < product_count; j++) {
+            if (strcmp(epc_str, expected_products[j].productCode) == 0) {
+                expected_products[j].scanned_count++;
+                found = true;
+                break;
+            }
+        }
+        
+        // Add to details
+        inventory_item_t *item = &report->items[report->item_count++];
+        snprintf(item->epc, sizeof(item->epc), "%s", epc_str);
+        snprintf(item->tid, sizeof(item->tid), "%s", tid_str);
+        item->timestamp = time(NULL);
+        item->status = found ? TAG_STATUS_NORMAL : TAG_STATUS_SURPLUS;
+        
+        if (found) report->match_count++;
+        else report->surplus_count++;
+    }
+    
+    // Calculate Differences
+    // 预留空间：预期产品差异 + 未录入系统的RFID
+    size_t max_diffs = product_count + count;
+    report->differences = (inventory_difference_t *)xcalloc(max_diffs > 0 ? max_diffs : 1, sizeof(inventory_difference_t));
+    report->diff_count = 0;
+    
+    // 1. 处理预期产品的差异
+    for (size_t i = 0; i < product_count; i++) {
+        expected_product_t *p = &expected_products[i];
+        int diff = p->scanned_count - p->quantity;
+        
+        if (diff != 0) {
+            inventory_difference_t *d = &report->differences[report->diff_count++];
+            d->productId = p->productId;
+            snprintf(d->productName, sizeof(d->productName), "%s", p->productName);
+            snprintf(d->productCode, sizeof(d->productCode), "%s", p->productCode);
+            d->expectedQuantity = p->quantity;
+            d->scannedQuantity = p->scanned_count;
+            d->difference = diff;
+            
+            if (diff < 0) {
+                strcpy(d->status, "MISSING");
+                report->loss_count += -diff;
+            } else {
+                strcpy(d->status, "EXTRA");
+            }
+        }
+    }
+    
+    // 2. 处理未录入系统的RFID
+    for (size_t i = 0; i < count; i++) {
+        char epc_str[65];
+        bytes_to_hex(scanned_tags[i].epc, scanned_tags[i].epc_len, epc_str);
+        
+        bool found = false;
+        for (size_t j = 0; j < product_count; j++) {
+            if (strcmp(epc_str, expected_products[j].productCode) == 0) {
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found) {
+            inventory_difference_t *d = &report->differences[report->diff_count++];
+            d->productId = 0;
+            d->productName[0] = '\0';
+            snprintf(d->productCode, sizeof(d->productCode), "%s", epc_str);
+            d->expectedQuantity = 0;
+            d->scannedQuantity = 1;
+            d->difference = 1;
+            strcpy(d->status, "UNKNOWN");
+        }
+    }
+    
+    return report;
+}
+
+void inventory_free_report(inventory_report_t *report) {
+    if (report) {
+        if (report->items) xfree(report->items);
+        if (report->differences) xfree(report->differences);
+        xfree(report);
+    }
+}
+
+char *inventory_report_to_json(const inventory_report_t *report, const char *task_id) {
+    cJSON *root = cJSON_CreateObject();
+    if (task_id) {
+        cJSON_AddStringToObject(root, "taskId", task_id);
+    }
+    cJSON_AddNumberToObject(root, "total_scanned", report->total_scanned);
+    cJSON_AddNumberToObject(root, "total_expected", report->total_expected);
+    cJSON_AddNumberToObject(root, "match_count", report->match_count);
+    cJSON_AddNumberToObject(root, "surplus_count", report->surplus_count);
+    cJSON_AddNumberToObject(root, "loss_count", report->loss_count);
+    cJSON_AddNumberToObject(root, "abnormal_count", report->abnormal_count);
+    
+    cJSON *items = cJSON_CreateArray();
+    for (size_t i = 0; i < report->item_count; i++) {
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "epc", report->items[i].epc);
+        cJSON_AddStringToObject(item, "tid", report->items[i].tid);
+        
+        const char *status_str = "unknown";
+        switch (report->items[i].status) {
+            case TAG_STATUS_NORMAL: status_str = "normal"; break;
+            case TAG_STATUS_SURPLUS: status_str = "surplus"; break;
+            case TAG_STATUS_LOSS: status_str = "loss"; break;
+            case TAG_STATUS_ABNORMAL: status_str = "abnormal"; break;
+        }
+        cJSON_AddStringToObject(item, "status", status_str);
+        cJSON_AddNumberToObject(item, "timestamp", (double)report->items[i].timestamp);
+        cJSON_AddItemToArray(items, item);
+    }
+    cJSON_AddItemToObject(root, "details", items);
+    
+    // differences
+    cJSON *diffs = cJSON_CreateArray();
+    for (size_t i = 0; i < report->diff_count; i++) {
+        cJSON *d = cJSON_CreateObject();
+        cJSON_AddNumberToObject(d, "productId", (double)report->differences[i].productId);
+        cJSON_AddStringToObject(d, "productName", report->differences[i].productName);
+        cJSON_AddStringToObject(d, "productCode", report->differences[i].productCode);
+        cJSON_AddNumberToObject(d, "expectedQuantity", report->differences[i].expectedQuantity);
+        cJSON_AddNumberToObject(d, "scannedQuantity", report->differences[i].scannedQuantity);
+        cJSON_AddNumberToObject(d, "difference", report->differences[i].difference);
+        cJSON_AddStringToObject(d, "status", report->differences[i].status);
+        cJSON_AddItemToArray(diffs, d);
+    }
+    cJSON_AddItemToObject(root, "differences", diffs);
+    
+    char *json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return json_str;
+}
+
+int inventory_cache_save(const inventory_report_t *report) {
+    char *json = inventory_report_to_json(report, NULL); // Offline cache might not need task_id or we can add it later
+    if (!json) return -1;
+    
+    FILE *f = fopen(CACHE_FILE, "a"); // Append mode
+    if (!f) {
+        xfree(json);
+        return -1;
+    }
+    
+    fprintf(f, "%s\n", json);
+    fclose(f);
+    xfree(json);
+    return 0;
+}
+
+char *inventory_cache_load(void) {
+    // Load one line (one report) from cache
+    // This is a simplified implementation. 
+    // In production, we might want to read all, send all, then clear.
+    // Here we just return the whole file content for simplicity of demonstration
+    
+    FILE *f = fopen(CACHE_FILE, "r");
+    if (!f) return NULL;
+    
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    
+    if (fsize <= 0) {
+        fclose(f);
+        return NULL;
+    }
+    
+    char *content = (char *)xmalloc(fsize + 1);
+    fread(content, 1, fsize, f);
+    content[fsize] = '\0';
+    
+    fclose(f);
+    return content;
+}
+
+void inventory_cache_clear(void) {
+    unlink(CACHE_FILE);
+}

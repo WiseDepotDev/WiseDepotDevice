@@ -1,0 +1,109 @@
+/**
+ * 巡检服务模块头文件
+ * 
+ * 负责从服务端获取巡检任务并执行
+ * 
+ * @author xingchentye
+ * @version 1.0.0
+ * @since 2026-03-12
+ */
+
+#ifndef WISE_DEPOT_PATROL_SERVICE_H
+#define WISE_DEPOT_PATROL_SERVICE_H
+
+#include "domain/patrol_task.h"
+#include <stdbool.h>
+
+/**
+ * 巡检服务配置结构体
+ */
+typedef struct {
+    int task_poll_interval;     /**< 任务轮询间隔 (秒) */
+    int task_timeout;           /**< 任务执行超时 (秒) */
+    bool auto_report_status;    /**< 是否自动上报任务状态 */
+} PatrolServiceConfig;
+
+/**
+ * 初始化巡检服务
+ * 
+ * @param config 服务配置 (NULL则使用默认配置)
+ * @return 0 成功，-1 失败
+ */
+int patrol_service_init(const PatrolServiceConfig *config);
+
+/**
+ * 从服务端获取待执行的巡检任务
+ * 
+ * @return 任务结构体指针 (需要调用者释放)，无任务或失败返回NULL
+ */
+PatrolTask *patrol_service_fetch_task(void);
+
+/**
+ * 执行从服务端获取的巡检任务
+ * 
+ * @return 0 成功，-1 失败
+ */
+int patrol_service_execute_task(void);
+
+/**
+ * 上报任务执行结果到服务端
+ * 
+ * @param task 已完成的任务
+ * @return 0 成功，-1 失败
+ */
+int patrol_service_report_result(const PatrolTask *task);
+
+/**
+ * 巡检服务主循环 (由调度器调用)
+ * 
+ * @param ctx 上下文 (未使用)
+ */
+void patrol_service_run(void *ctx);
+
+/**
+ * 设置认证Token
+ * 
+ * @param token 认证Token (会复制一份)
+ */
+void patrol_service_set_token(const char *token);
+
+/**
+ * 清除认证Token
+ */
+void patrol_service_clear_token(void);
+
+/**
+ * 释放巡检服务资源
+ */
+void patrol_service_cleanup(void);
+
+/**
+ * 获取默认巡检服务配置
+ * 
+ * @return 默认配置结构体
+ */
+PatrolServiceConfig patrol_service_get_default_config(void);
+
+/**
+ * 检查是否有正在执行的任务
+ * 
+ * @return true 有任务正在执行，false 无任务执行
+ */
+bool patrol_service_is_busy(void);
+
+/**
+ * 获取当前执行的任务
+ * 
+ * @return 当前任务指针 (只读)，无任务返回NULL
+ */
+const PatrolTask *patrol_service_get_current_task(void);
+
+/**
+ * 启动指定的巡检任务
+ * 
+ * @param task 任务指针 (该函数会接管 task 的内存所有权)
+ * @return 0 成功，-1 失败 (任务正在执行或 task 为 NULL)
+ */
+int patrol_service_start_task(PatrolTask *task);
+
+#endif // WISE_DEPOT_PATROL_SERVICE_H
