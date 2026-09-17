@@ -17,6 +17,7 @@ extern void test_envelope_missing_payload(void);
 extern void test_envelope_rejects_legacy_format(void);
 extern void test_envelope_invalid_input(void);
 extern void test_envelope_success_code_matches_generated_macro(void);
+extern void test_envelope_system_error_fixture(void);
 
 /* Setup and Teardown for Unity */
 void setUp(void) {
@@ -49,6 +50,7 @@ int main(void) {
     RUN_TEST(test_envelope_rejects_legacy_format);
     RUN_TEST(test_envelope_invalid_input);
     RUN_TEST(test_envelope_success_code_matches_generated_macro);
+    RUN_TEST(test_envelope_system_error_fixture);
 
     return UNITY_END();
 }

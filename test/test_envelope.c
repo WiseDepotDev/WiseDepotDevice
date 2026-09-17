@@ -141,3 +141,30 @@ void test_envelope_success_code_matches_generated_macro(void)
     assert(wd_error_is_success(envelope_code(&env)) == 1);
     envelope_free(&env);
 }
+
+/**
+ * 系统失败样例（对应 docs/standards/fixtures/envelope-system-error.json）。
+ *
+ * 三端契约测试共用同一组样例：packet_type 为 UNKNOWN、code 与 errorCode 均为 SYS-REQUEST-1001。
+ */
+void test_envelope_system_error_fixture(void)
+{
+    static const char *SYSTEM_ERROR_JSON =
+        "{"
+        "\"header\":{\"request_id\":\"2026-02-27T12:00:02.789+08:00#ghi789\","
+        "\"packet_type\":\"UNKNOWN\",\"timestamp\":1772000002789},"
+        "\"payload\":{\"code\":\"SYS-REQUEST-1001\",\"message\":\"未知异常\","
+        "\"errorCode\":\"SYS-REQUEST-1001\",\"data\":null}"
+        "}";
+    wd_envelope_t env;
+
+    assert(envelope_parse(SYSTEM_ERROR_JSON, &env) == WD_ENVELOPE_OK);
+    assert(envelope_is_success(&env) == 0);
+    assert(strcmp(env.header.packet_type, "UNKNOWN") == 0);
+    assert(env.header.timestamp == 1772000002789LL);
+    assert(strcmp(envelope_code(&env), WD_SYSTEM_REQUEST_ERROR) == 0);
+    assert(strcmp(envelope_error_code(&env), WD_SYSTEM_REQUEST_ERROR) == 0);
+    assert(envelope_data(&env) == NULL);
+    assert(envelope_data_rows(&env) == NULL);
+    envelope_free(&env);
+}
