@@ -148,17 +148,21 @@ int server_discovery_start(int timeout_sec) {
         }
     }
 
-    LOG_WARN("Server discovery timed out, using default server IP: 10.0.0.4");
-    
-    char default_url[256];
-    snprintf(default_url, sizeof(default_url), "http://10.0.0.4:8080");
-    
-    extern void config_set_server_url(const char *url);
-    config_set_server_url(default_url);
-    
-    LOG_INFO("Default server URL set to: %s", default_url);
-    
-    return 0;
+    /* 发现超时后**不再**回退到硬编码的内网地址（STD-SEC-01）。
+     * 保留调用方已配置的 server_url（默认 http://localhost:8080 或 WISE_SERVER_URL）；
+     * 如确需固定兜底地址，由部署方通过 WISE_FALLBACK_SERVER_URL 注入。 */
+    LOG_WARN("Server discovery timed out; keeping the configured server URL "
+             "(set WISE_SERVER_URL or WISE_FALLBACK_SERVER_URL to override)");
+
+    const char *fallback = getenv("WISE_FALLBACK_SERVER_URL");
+    if (fallback && fallback[0] != '\0') {
+        extern void config_set_server_url(const char *url);
+        config_set_server_url(fallback);
+        LOG_INFO("Fallback server URL set from WISE_FALLBACK_SERVER_URL: %s", fallback);
+        return 0;
+    }
+
+    return -1;
 }
 
 void server_discovery_stop(void) {

@@ -37,7 +37,6 @@ static Config *g_config = NULL;
 #define DEFAULT_NETWORK_TIMEOUT 1000
 #define DEFAULT_MOVE_SPEED_CM_S 19.7f // Calibrated speed (50% PWM -> 98.5cm/5s = 19.7cm/s)
 #define PERSISTENT_CONFIG_FILE "wise-device.dat"
-#define ENCRYPTION_KEY "wise-depot-secret-key-2026" // Should be in secure storage
 
 static char *trim(char *s) {
     if (!s) return NULL;
@@ -119,21 +118,36 @@ static void config_init_defaults(void) {
     g_config->task_poll_interval = DEFAULT_TASK_POLL_INTERVAL;
     g_config->network_timeout = DEFAULT_NETWORK_TIMEOUT;
     g_config->log_upload_strategy = xstrdup("daily");
-    g_config->encryption_key = xstrdup(ENCRYPTION_KEY);
+    /* 加密密钥：仅从环境变量读取，源码内不得硬编码（STD-SEC-01）。
+     * 该字段目前只被赋值与释放、尚无消费方；启用本地数据加密时必须由部署方
+     * 通过 WISE_ENCRYPTION_KEY 注入（建议 0600 配置文件或 systemd 环境变量）。 */
+    char *env_encryption_key = getenv("WISE_ENCRYPTION_KEY");
+    g_config->encryption_key = env_encryption_key ? xstrdup(env_encryption_key) : NULL;
+    if (!g_config->encryption_key) {
+        LOG_WARN("WISE_ENCRYPTION_KEY not set; local data encryption is unavailable");
+    }
     g_config->version = xstrdup("0.2.0");
 
-    // MQTT Defaults
+    /* MQTT：地址 / 账号 / 口令一律只从环境变量读取，源码内不得出现真实地址与口令，
+     * 也不再保留"硬编码兜底默认值"——缺失时保持 NULL，由 mqtt_client_init 明确报错。 */
     char *env_mqtt_host = getenv("MQTT_HOST");
-    g_config->mqtt_host = env_mqtt_host ? xstrdup(env_mqtt_host) : xstrdup("10.0.0.4");
-    
+    g_config->mqtt_host = env_mqtt_host ? xstrdup(env_mqtt_host) : NULL;
+
     char *env_mqtt_port = getenv("MQTT_PORT");
     g_config->mqtt_port = env_mqtt_port ? atoi(env_mqtt_port) : 1883;
-    
+
     char *env_mqtt_user = getenv("MQTT_USERNAME");
-    g_config->mqtt_username = env_mqtt_user ? xstrdup(env_mqtt_user) : xstrdup("root");
-    
+    g_config->mqtt_username = env_mqtt_user ? xstrdup(env_mqtt_user) : NULL;
+
     char *env_mqtt_pass = getenv("MQTT_PASSWORD");
-    g_config->mqtt_password = env_mqtt_pass ? xstrdup(env_mqtt_pass) : xstrdup("Key-1122");
+    g_config->mqtt_password = env_mqtt_pass ? xstrdup(env_mqtt_pass) : NULL;
+
+    if (!g_config->mqtt_host) {
+        LOG_WARN("MQTT_HOST not set; MQTT disabled, device will rely on HTTP polling");
+    }
+    if (g_config->mqtt_host && !g_config->mqtt_password) {
+        LOG_WARN("MQTT_PASSWORD not set; connecting to MQTT broker without credentials");
+    }
 }
 
 #include "infrastructure/http_client.h"

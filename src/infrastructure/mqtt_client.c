@@ -37,6 +37,11 @@ static void connlost(void *context, char *cause) {
 }
 
 int mqtt_client_init(const char *host, int port, const char *client_id, const char *username, const char *password) {
+    if (!host || host[0] == '\0') {
+        LOG_ERROR("MQTT host is not configured; set the MQTT_HOST environment variable");
+        return -1;
+    }
+
     char url[256];
     snprintf(url, sizeof(url), "tcp://%s:%d", host, port);
 
