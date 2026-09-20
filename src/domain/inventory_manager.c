@@ -1,6 +1,7 @@
 #include "domain/inventory_manager.h"
 #include "common/envelope.h"
 #include "common/logger.h"
+#include "common/utils.h"
 #include "common/xmalloc.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,16 +23,18 @@ typedef struct {
 static expected_product_t *expected_products = NULL;
 static size_t product_count = 0;
 
-// Helper to convert bytes to hex string
-static void bytes_to_hex(const uint8_t *bytes, size_t len, char *out) {
-    for (size_t i = 0; i < len; i++) {
-        sprintf(out + i * 2, "%02X", bytes[i]);
-    }
-    out[len * 2] = '\0';
+void inventory_mgr_init(void) {
+    /* P4-01：先释放上一份，重复 init 不再泄漏（此前 1000 条约 216 KB 每次都泄漏） */
+    inventory_mgr_free();
+    expected_products = (expected_product_t *)xmalloc(sizeof(expected_product_t) * MAX_EXPECTED_PRODUCTS);
+    product_count = 0;
 }
 
-void inventory_mgr_init(void) {
-    expected_products = (expected_product_t *)xmalloc(sizeof(expected_product_t) * MAX_EXPECTED_PRODUCTS);
+void inventory_mgr_free(void) {
+    if (expected_products) {
+        xfree(expected_products);
+        expected_products = NULL;
+    }
     product_count = 0;
 }
 
@@ -114,8 +117,8 @@ inventory_report_t *inventory_process_scan(const rfid_tag_t *scanned_tags, size_
     for (size_t i = 0; i < count; i++) {
         char epc_str[65];
         char tid_str[65];
-        bytes_to_hex(scanned_tags[i].epc, scanned_tags[i].epc_len, epc_str);
-        bytes_to_hex(scanned_tags[i].tid, scanned_tags[i].tid_len, tid_str);
+        bytes_to_hex(scanned_tags[i].epc, scanned_tags[i].epc_len, epc_str, sizeof(epc_str));
+        bytes_to_hex(scanned_tags[i].tid, scanned_tags[i].tid_len, tid_str, sizeof(tid_str));
         
         bool found = false;
         for (size_t j = 0; j < product_count; j++) {
@@ -169,7 +172,7 @@ inventory_report_t *inventory_process_scan(const rfid_tag_t *scanned_tags, size_
     // 2. 处理未录入系统的RFID
     for (size_t i = 0; i < count; i++) {
         char epc_str[65];
-        bytes_to_hex(scanned_tags[i].epc, scanned_tags[i].epc_len, epc_str);
+        bytes_to_hex(scanned_tags[i].epc, scanned_tags[i].epc_len, epc_str, sizeof(epc_str));
         
         bool found = false;
         for (size_t j = 0; j < product_count; j++) {

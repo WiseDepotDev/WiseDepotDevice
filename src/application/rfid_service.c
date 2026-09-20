@@ -66,6 +66,8 @@ void rfid_service_cleanup(void) {
     pthread_mutex_lock(&service_mutex);
     if (is_initialized) {
         rfid_close();
+        /* P4-01：预期库存数组（1000 条，约 216 KB）此前从未释放；cleanup 是它的归属点 */
+        inventory_mgr_free();
         is_initialized = false;
     }
     pthread_mutex_unlock(&service_mutex);
@@ -238,7 +240,7 @@ int rfid_service_run_cycle(const char *task_id) {
     if (count > 0) {
         for (int i = 0; i < count; i++) {
             char epc_str[65];
-            bytes_to_hex(tags[i].epc, tags[i].epc_len, epc_str);
+            bytes_to_hex(tags[i].epc, tags[i].epc_len, epc_str, sizeof(epc_str));
             LOG_INFO("Scanned Tag EPC: %s", epc_str);
         }
     }

@@ -11,6 +11,7 @@
 #include "domain/patrol_task.h"
 #include "domain/motor_controller.h"
 #include "common/logger.h"
+#include "common/utils.h"
 #include "common/xmalloc.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -465,39 +466,54 @@ PatrolTask *patrol_task_from_json(const char *json) {
  */
 char *patrol_task_to_json(const PatrolTask *task) {
     if (!task) return NULL;
-    
+
     size_t buf_size = 4096;
     char *json = xmalloc(buf_size);
-    int offset = 0;
-    
-    offset += snprintf(json + offset, buf_size - offset,
-                       "{\"id\":\"%s\",\"name\":\"%s\",\"status\":\"%s\",\"actionCount\":%d,\"actions\":[",
-                       task->id, task->name,
-                       patrol_task_status_to_string(task->status),
-                       task->action_count);
-    
-    for (uint8_t i = 0; i < task->action_count; i++) {
-        const PatrolAction *action = &task->actions[i];
-        
-        if (i > 0) {
-            offset += snprintf(json + offset, buf_size - offset, ",");
-        }
-        
-        offset += snprintf(json + offset, buf_size - offset,
-                           "{\"type\":\"%s\",\"speed\":%d,\"duration\":%u",
-                           patrol_action_type_to_string(action->type),
-                           action->speed, action->duration_ms);
-        
-        if (action->type == PATROL_ACTION_SERVO) {
-            offset += snprintf(json + offset, buf_size - offset,
-                               ",\"channel\":%d,\"angle\":%d",
-                               action->servo_channel, action->servo_angle);
-        }
-        
-        offset += snprintf(json + offset, buf_size - offset, "}");
+    size_t used = 0;
+
+    /* P4-01：action_count 未校验时会越界读 actions[]（该数组上限为 PATROL_TASK_MAX_ACTIONS），
+     * 这里先夹取到数组真实容量，避免用损坏/伪造的计数去索引。 */
+    uint8_t action_count = task->action_count;
+    if (action_count > PATROL_TASK_MAX_ACTIONS) {
+        LOG_WARN("patrol_task_to_json: action_count=%u exceeds max %d, clamped",
+                 (unsigned)action_count, PATROL_TASK_MAX_ACTIONS);
+        action_count = PATROL_TASK_MAX_ACTIONS;
     }
-    
-    offset += snprintf(json + offset, buf_size - offset, "]}");
-    
+
+    /* P4-01：原写法 `offset += snprintf(json + offset, buf_size - offset, ...)` 有两处隐患：
+     * 1. snprintf 返回**期望长度**，截断后 offset 会超过 buf_size，随后 `buf_size - offset`
+     *    在 size_t 下溢成巨大值 → 越界写；
+     * 2. `json + offset` 在越界后本身就是非法指针（UB）。
+     * 改为 wd_str_appendf()：容量内累加，任何情况下都不越界且保持 NUL 结尾。 */
+    used = wd_str_appendf(json, buf_size, used,
+                          "{\"id\":\"%s\",\"name\":\"%s\",\"status\":\"%s\",\"actionCount\":%d,\"actions\":[",
+                          task->id, task->name,
+                          patrol_task_status_to_string(task->status),
+                          action_count);
+
+    for (uint8_t i = 0; i < action_count; i++) {
+        const PatrolAction *action = &task->actions[i];
+
+        if (i > 0) {
+            used = wd_str_appendf(json, buf_size, used, ",");
+        }
+
+        used = wd_str_appendf(json, buf_size, used,
+                              "{\"type\":\"%s\",\"speed\":%d,\"duration\":%u",
+                              patrol_action_type_to_string(action->type),
+                              action->speed, action->duration_ms);
+
+        if (action->type == PATROL_ACTION_SERVO) {
+            used = wd_str_appendf(json, buf_size, used,
+                                  ",\"channel\":%d,\"angle\":%d",
+                                  action->servo_channel, action->servo_angle);
+        }
+
+        used = wd_str_appendf(json, buf_size, used, "}");
+    }
+
+    used = wd_str_appendf(json, buf_size, used, "]}");
+    json[used < buf_size ? used : buf_size - 1] = '\0';
+
     return json;
 }

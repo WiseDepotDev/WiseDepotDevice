@@ -41,6 +41,8 @@ void test_inventory_load_expected(void) {
     TEST_ASSERT_EQUAL(0, inventory_load_expected(EXPECTED_ENVELOPE));
     TEST_ASSERT_EQUAL(-1, inventory_load_expected(NULL));
     TEST_ASSERT_EQUAL(-1, inventory_load_expected(FAILED_ENVELOPE));
+
+    inventory_mgr_free();
 }
 
 /** 扫码结果比对：按 EPC↔productCode 匹配，统计匹配/盘盈/盘亏与差异明细 */
@@ -112,4 +114,5 @@ void test_inventory_process_scan(void) {
     TEST_ASSERT_TRUE(found_unknown);
 
     inventory_free_report(report);
+    inventory_mgr_free();
 }

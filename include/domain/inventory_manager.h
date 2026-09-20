@@ -45,6 +45,9 @@ typedef struct {
 // Initialize inventory manager
 void inventory_mgr_init(void);
 
+// Release inventory manager resources (P4-01: 预期库存数组约 216 KB；init 可重复调用，会先释放上一份)
+void inventory_mgr_free(void);
+
 // Load expected inventory from JSON string (from server)
 int inventory_load_expected(const char *json_str);
 

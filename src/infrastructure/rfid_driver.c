@@ -1,5 +1,6 @@
 #include "infrastructure/rfid_driver.h"
 #include "common/logger.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -107,10 +108,20 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
         return -2; // Timeout
     }
 
-    if (resp_len_byte > max_resp_len) {
-        LOG_ERROR("Response too long: %d", resp_len_byte);
-        return -3; 
+    /* 长度合法性（P4-01）。三条理由说明旧判断 `resp_len_byte > max_resp_len` 既无用也不足：
+     * 1. resp_len_byte 是 uint8_t（最大 255），当缓冲容量为 RFID_FRAME_MAX_LEN(256) 时该条件恒为假——是死判断；
+     * 2. 真正危险的是**下界**：resp_len_byte == 0 时，后面的 resp_len_byte - 1 会下溢，
+     *    造成 response[-1] 与超长 CRC 计算（越界读，甚至整段地址空间）；
+     * 3. 帧格式 Len|Adr|reCmd|Status|Data...|CRC_LSB|CRC_MSB 决定最小有效载荷为 5 字节。
+     * 正确条件 = 「不小于最小帧长」且「长度字节 + 载荷完整落在缓冲内」。 */
+    enum { MIN_RESP_PAYLOAD_LEN = 5 };
+    if (resp_len_byte < MIN_RESP_PAYLOAD_LEN || (size_t)resp_len_byte + 1 > max_resp_len) {
+        LOG_ERROR("Invalid response length: %u (buffer capacity: %zu)",
+                  (unsigned)resp_len_byte, max_resp_len);
+        return -3;
     }
+    /* 边界不变式：此后 response[0..resp_len_byte] 全部合法 */
+    assert((size_t)resp_len_byte + 1 <= max_resp_len);
 
     response[0] = resp_len_byte;
     // Read the rest: resp_len_byte bytes (since Len byte excludes itself)
@@ -119,6 +130,7 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
         LOG_WARN("Incomplete response");
         return -2;
     }
+    assert(n <= (int)max_resp_len - 1); /* 载荷写入的是 response[1..resp_len_byte] */
 
     // Verify CRC
     uint16_t calc_crc = calculate_crc16(response, resp_len_byte - 1); // Calculate up to Data end

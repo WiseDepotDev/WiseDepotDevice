@@ -18,6 +18,10 @@ extern void test_envelope_rejects_legacy_format(void);
 extern void test_envelope_invalid_input(void);
 extern void test_envelope_success_code_matches_generated_macro(void);
 extern void test_envelope_system_error_fixture(void);
+/* P4-01 内存安全回归 */
+extern void test_bytes_to_hex_respects_capacity(void);
+extern void test_wd_str_appendf_never_overflows(void);
+extern void test_patrol_task_to_json_clamps_action_count(void);
 
 /* Setup and Teardown for Unity */
 void setUp(void) {
@@ -51,6 +55,11 @@ int main(void) {
     RUN_TEST(test_envelope_invalid_input);
     RUN_TEST(test_envelope_success_code_matches_generated_macro);
     RUN_TEST(test_envelope_system_error_fixture);
+
+    // 内存安全（P4-01）
+    RUN_TEST(test_bytes_to_hex_respects_capacity);
+    RUN_TEST(test_wd_str_appendf_never_overflows);
+    RUN_TEST(test_patrol_task_to_json_clamps_action_count);
 
     return UNITY_END();
 }

@@ -417,6 +417,11 @@ void config_free(void) {
         if (g_config->log_upload_strategy) xfree(g_config->log_upload_strategy);
         if (g_config->encryption_key) xfree(g_config->encryption_key);
         if (g_config->version) xfree(g_config->version);
+        /* P4-01：以下字段同样是 xstrdup 分配，此前漏释放（ASan 报 13 字节泄漏 = /dev/ttyUSB0） */
+        if (g_config->rfid_serial_port) xfree(g_config->rfid_serial_port);
+        if (g_config->mqtt_host) xfree(g_config->mqtt_host);
+        if (g_config->mqtt_username) xfree(g_config->mqtt_username);
+        if (g_config->mqtt_password) xfree(g_config->mqtt_password);
         xfree(g_config);
         g_config = NULL;
     }

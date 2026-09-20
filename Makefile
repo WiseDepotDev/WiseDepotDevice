@@ -25,7 +25,7 @@ LIB_OBJS = $(filter-out obj/main.o,$(OBJS))
 TARGET = bin/wise-device
 TEST_TARGET = bin/test_runner
 
-.PHONY: all debug release clean check test directories coverage
+.PHONY: all debug release clean check test check-asan directories coverage
 
 all: debug
 
@@ -63,6 +63,11 @@ check: directories $(LIB_OBJS) $(TEST_OBJS)
 
 # 运行测试（check 的别名，便于 make test / make check 两种习惯）
 test: check
+
+# 内存安全检查 (P4-01：ASan + UBSan；需要 libasan/libubsan)
+check-asan: CFLAGS = $(CFLAGS_COMMON) -g -O0 -DDEBUG -fsanitize=address,undefined -fno-omit-frame-pointer
+check-asan: LDFLAGS += -fsanitize=address,undefined
+check-asan: clean check
 
 # 代码覆盖率 (需要 lcov)
 coverage: CFLAGS = $(CFLAGS_DEBUG) --coverage
