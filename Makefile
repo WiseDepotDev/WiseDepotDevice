@@ -25,7 +25,7 @@ LIB_OBJS = $(filter-out obj/main.o,$(OBJS))
 TARGET = bin/wise-device
 TEST_TARGET = bin/test_runner
 
-.PHONY: all debug release clean check directories coverage
+.PHONY: all debug release clean check test directories coverage
 
 all: debug
 
@@ -60,6 +60,9 @@ check: CFLAGS = $(CFLAGS_DEBUG)
 check: directories $(LIB_OBJS) $(TEST_OBJS)
 	$(CC) $(CFLAGS) -o $(TEST_TARGET) $(TEST_OBJS) $(LIB_OBJS) $(LDFLAGS)
 	./$(TEST_TARGET)
+
+# 运行测试（check 的别名，便于 make test / make check 两种习惯）
+test: check
 
 # 代码覆盖率 (需要 lcov)
 coverage: CFLAGS = $(CFLAGS_DEBUG) --coverage

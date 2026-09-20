@@ -45,9 +45,14 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    // Load config (Prioritizes Env/Server, file is optional fallback if provided)
+    // Load config (本地：环境变量 + 可选配置文件；不联网)
     if (config_load(config_file) != 0) {
-        LOG_WARN("Failed to load config (Env/Server/File), using defaults");
+        LOG_WARN("Failed to load config (Env/File), using defaults");
+    }
+
+    // 远端配置拉取：与本地加载分离，失败不影响启动（P4-02 拆出，P4-08 将迁至 application 层）
+    if (config_fetch_remote() != 0) {
+        LOG_WARN("Remote config unavailable, continue with local config");
     }
     
     const Config *cfg = config_get();

@@ -19,6 +19,7 @@
 #include "common/xmalloc.h"
 #include "infrastructure/http_client.h"
 #include "common/crypto.h"
+#include "common/envelope.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>

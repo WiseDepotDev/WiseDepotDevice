@@ -7,12 +7,15 @@
 
 void test_config(void) {
     // 1. Test defaults
+    // 注意：config_load() 只做本地 I/O（环境变量 + 可选文件），不发起 HTTP，
+    // 因此本用例可在无网络环境下运行。远端拉取是单独的 config_fetch_remote()。
     config_load(NULL);
     const Config *cfg = config_get();
     assert(cfg != NULL);
     assert(cfg->server_url != NULL);
     assert(strcmp(cfg->server_url, "http://localhost:8080") == 0);
-    assert(cfg->heartbeat_interval == 30);
+    // 默认心跳 1s：与服务端下发的配置一致（DeviceApplicationService 中 heartbeatInterval=1）
+    assert(cfg->heartbeat_interval == 1);
     
     // 2. Test file loading
     // Create temporary config file

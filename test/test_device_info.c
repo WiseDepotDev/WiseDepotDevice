@@ -1,6 +1,7 @@
 #include "common/device_info.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 void test_device_info(void) {
@@ -19,15 +20,32 @@ void test_device_info(void) {
     // 2. Get again (should be same pointer)
     const DeviceInfo *info2 = device_info_get();
     assert(info == info2);
-    
-    // 3. Free is called in device_stop usually, but we can call it here for test cleanup
-    // Note: device_info_free handles global pointer
+
+    // free 之后不能再读 info 的字段（use-after-free），先做内容快照
+    char *os_snapshot = strdup(info->os_name);
+    char *kernel_snapshot = strdup(info->kernel_ver);
+    char *model_snapshot = strdup(info->model);
+    assert(os_snapshot && kernel_snapshot && model_snapshot);
+
+    // 3. Free，模拟 device_stop 的清理
     device_info_free();
-    
-    // 4. Get again (should re-init)
+
+    // 4. 再次获取应重新初始化。
+    // 注意：这里**不能**断言 info3 != info —— free 之后立刻分配同尺寸内存时，
+    // glibc tcache 会原样返回刚释放的块，指针相等属正常（旧断言因此在 tcache 下必失败）。
+    // 断言的正确目标是"重建后内容有效且与首次一致"。
     const DeviceInfo *info3 = device_info_get();
     assert(info3 != NULL);
-    assert(info3 != info); // Should be new allocation
-    
+    assert(info3->os_name != NULL);
+    assert(info3->kernel_ver != NULL);
+    assert(info3->model != NULL);
+    assert(strcmp(info3->os_name, os_snapshot) == 0);
+    assert(strcmp(info3->kernel_ver, kernel_snapshot) == 0);
+    assert(strcmp(info3->model, model_snapshot) == 0);
+
+    free(os_snapshot);
+    free(kernel_snapshot);
+    free(model_snapshot);
+
     device_info_free();
 }

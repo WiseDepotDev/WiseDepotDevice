@@ -150,7 +150,41 @@ static void config_init_defaults(void) {
     }
 }
 
+/* 远端配置拉取需要 HTTP 能力；按 P4-08 规划，该能力最终应迁到 application 层，
+ * 本函数即迁移前的过渡点（common 层内唯一保留的 infrastructure 依赖）。 */
 #include "infrastructure/http_client.h"
+
+int config_fetch_remote(void) {
+    if (!g_config) {
+        config_init_defaults();
+    }
+    if (!g_config->server_url || !g_config->device_id) {
+        LOG_WARN("Skip remote config: server_url or device_id missing");
+        return -1;
+    }
+
+    /* URL 形如：SERVER_URL + api_base_url + /config?deviceId=...&version=... */
+    char url[1024];
+    snprintf(url, sizeof(url), "%s%s/config?deviceId=%s&version=%s",
+             g_config->server_url, g_config->api_base_url, g_config->device_id, g_config->version);
+
+    LOG_INFO("Fetching config from: %s", url);
+    HttpResponse *res = http_get(url, NULL, 0);
+    if (!res) {
+        LOG_WARN("Failed to connect to config server");
+        return -1;
+    }
+
+    int rc = -1;
+    if (res->status_code == 200 && res->body) {
+        LOG_INFO("Config fetched successfully");
+        rc = config_update_from_json(res->body);
+    } else {
+        LOG_WARN("Failed to fetch config, status: %d", res->status_code);
+    }
+    http_response_free(res);
+    return rc;
+}
 
 int config_load(const char *config_file) {
     config_init_defaults();
@@ -168,25 +202,15 @@ int config_load(const char *config_file) {
         g_config->device_id = xstrdup(env_device);
     }
 
-    // 2. Fetch config from server
-    // We construct a URL like: SERVER_URL/api/device/config?deviceId=...&version=...
-    if (g_config->server_url && g_config->device_id) {
-        char url[1024];
-        snprintf(url, sizeof(url), "%s%s/config?deviceId=%s&version=%s", 
-                 g_config->server_url, g_config->api_base_url, g_config->device_id, g_config->version);
-        
-        LOG_INFO("Fetching config from: %s", url);
-        HttpResponse *res = http_get(url, NULL, 0);
-        if (res) {
-            if (res->status_code == 200 && res->body) {
-                LOG_INFO("Config fetched successfully");
-                config_update_from_json(res->body);
-            } else {
-                LOG_WARN("Failed to fetch config, status: %d", res->status_code);
-            }
-            http_response_free(res);
+    /* 心跳间隔同样支持环境变量覆盖（与 WISE_SERVER_URL / WISE_DEVICE_ID 一致），
+     * 便于部署方在不改配置文件的情况下调整；非法值忽略并保留原值。 */
+    char *env_heartbeat = getenv("WISE_DEVICE_HEARTBEAT");
+    if (env_heartbeat) {
+        int parsed = atoi(env_heartbeat);
+        if (parsed > 0) {
+            g_config->heartbeat_interval = parsed;
         } else {
-            LOG_WARN("Failed to connect to config server");
+            LOG_WARN("Ignoring invalid WISE_DEVICE_HEARTBEAT: %s", env_heartbeat);
         }
     }
 
