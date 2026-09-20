@@ -25,7 +25,7 @@ LIB_OBJS = $(filter-out obj/main.o,$(OBJS))
 TARGET = bin/wise-device
 TEST_TARGET = bin/test_runner
 
-.PHONY: all debug release clean check test check-asan directories coverage
+.PHONY: all debug release clean check test check-asan check-tsan directories coverage
 
 all: debug
 
@@ -68,6 +68,11 @@ test: check
 check-asan: CFLAGS = $(CFLAGS_COMMON) -g -O0 -DDEBUG -fsanitize=address,undefined -fno-omit-frame-pointer
 check-asan: LDFLAGS += -fsanitize=address,undefined
 check-asan: clean check
+
+# 线程安全检查 (P4-03：TSan；需要 libtsan)
+check-tsan: CFLAGS = $(CFLAGS_COMMON) -g -O0 -DDEBUG -fsanitize=thread -fno-omit-frame-pointer
+check-tsan: LDFLAGS += -fsanitize=thread
+check-tsan: clean check
 
 # 代码覆盖率 (需要 lcov)
 coverage: CFLAGS = $(CFLAGS_DEBUG) --coverage

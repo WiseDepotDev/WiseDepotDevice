@@ -22,6 +22,9 @@ extern void test_envelope_system_error_fixture(void);
 extern void test_bytes_to_hex_respects_capacity(void);
 extern void test_wd_str_appendf_never_overflows(void);
 extern void test_patrol_task_to_json_clamps_action_count(void);
+/* P4-03 日志并发安全 */
+extern void test_logger_multithreaded_output_is_intact(void);
+extern void test_logger_reopen_keeps_logging(void);
 
 /* Setup and Teardown for Unity */
 void setUp(void) {
@@ -60,6 +63,10 @@ int main(void) {
     RUN_TEST(test_bytes_to_hex_respects_capacity);
     RUN_TEST(test_wd_str_appendf_never_overflows);
     RUN_TEST(test_patrol_task_to_json_clamps_action_count);
+
+    // 日志并发安全（P4-03）
+    RUN_TEST(test_logger_multithreaded_output_is_intact);
+    RUN_TEST(test_logger_reopen_keeps_logging);
 
     return UNITY_END();
 }
