@@ -3,7 +3,7 @@
 
 CC = gcc
 CFLAGS_COMMON = -Wall -Wextra -Werror -std=c11 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -Iinclude $(shell pkg-config --cflags libcjson libcurl openssl)
-LDFLAGS = $(shell pkg-config --libs libcjson libcurl openssl) -lpthread -lpaho-mqtt3c
+LDFLAGS = $(shell pkg-config --libs libcjson libcurl openssl) -lpthread -lpaho-mqtt3a
 
 # 调试与发布模式标志
 CFLAGS_DEBUG = $(CFLAGS_COMMON) -g -O0 -DDEBUG
@@ -25,7 +25,7 @@ LIB_OBJS = $(filter-out obj/main.o,$(OBJS))
 TARGET = bin/wise-device
 TEST_TARGET = bin/test_runner
 
-.PHONY: all debug release clean check test check-asan check-tsan directories coverage
+.PHONY: all debug release clean check test check-asan check-tsan check-mqtt directories coverage
 
 all: debug
 
@@ -73,6 +73,12 @@ check-asan: clean check
 check-tsan: CFLAGS = $(CFLAGS_COMMON) -g -O0 -DDEBUG -fsanitize=thread -fno-omit-frame-pointer
 check-tsan: LDFLAGS += -fsanitize=thread
 check-tsan: clean check
+
+# MQTT 接收通道集成测试 (P4-05：连接真实 broker，需要 mosquitto；不挂在 check 里)
+check-mqtt: CFLAGS = $(CFLAGS_DEBUG)
+check-mqtt: directories $(LIB_OBJS)
+	$(CC) $(CFLAGS) -o bin/mqtt_integration test/integration/mqtt_integration.c $(LIB_OBJS) $(LDFLAGS)
+	bash test/integration/run_mqtt_integration.sh
 
 # 代码覆盖率 (需要 lcov)
 coverage: CFLAGS = $(CFLAGS_DEBUG) --coverage
