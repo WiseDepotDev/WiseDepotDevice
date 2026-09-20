@@ -15,8 +15,6 @@
 #include <unistd.h>
 #include <time.h>
 
-#define SIGNATURE_SECRET "wise-depot-api-signature-secret-key-2024"
-
 static rfid_service_config_t service_config;
 static bool is_initialized = false;
 static bool is_busy = false;
@@ -103,15 +101,23 @@ static int fetch_expected_inventory(void) {
     char string_to_sign[2048];
     snprintf(string_to_sign, sizeof(string_to_sign), "GET\n%s\n%s", uri_path, query_string);
     
-    LOG_INFO("String to sign: %s", string_to_sign);
+    /* 规范化待签串不含密钥，保留但降到 DEBUG 级（P4-04） */
+    LOG_DEBUG("String to sign: %s", string_to_sign);
     
     unsigned char hmac_result[32];
-    hmac_sha256((const unsigned char *)SIGNATURE_SECRET, strlen(SIGNATURE_SECRET), (const unsigned char *)string_to_sign, strlen(string_to_sign), hmac_result);
+    const char *signing_secret = config_signature_secret();
+    if (signing_secret == NULL) {
+        LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); expected inventory aborted");
+        return -1;
+    }
+    hmac_sha256((const unsigned char *)signing_secret, strlen(signing_secret),
+                (const unsigned char *)string_to_sign, strlen(string_to_sign), hmac_result);
     
     size_t sig_len = 0;
     char *signature = base64_encode(hmac_result, 32, &sig_len);
     
-    LOG_INFO("Generated signature: %s", signature);
+    /* P4-04：签名是可重放的认证材料，禁止写入日志（原先在 INFO 级打印完整签名） */
+    LOG_DEBUG("Signature generated (len=%zu)", sig_len);
     
     char header_sign[256];
     char header_time[64];

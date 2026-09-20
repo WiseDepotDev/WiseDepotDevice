@@ -1,0 +1,23 @@
+[Unit]
+Description=WiseDepot Device Client (慧仓智控设备端)
+Documentation=file:/etc/wise-device/wise-device.conf.example
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 可选：把签名密钥等敏感项走独立的环境文件（同样建议 0600），避免写进主配置
+EnvironmentFile=-/etc/wise-device/wise-device.env
+# 配置文件含签名密钥，权限应为 0600
+ExecStart=/usr/local/bin/wise-device /etc/wise-device/wise-device.conf
+Restart=on-failure
+RestartSec=5
+
+# 最小权限（串口/GPIO 需要额外授权时按现场调整，例如 Group=dialout 或 SupplementaryGroups）
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

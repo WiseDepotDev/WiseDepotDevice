@@ -92,7 +92,7 @@ install: release
 	install -d $(DESTDIR)/usr/local/bin
 	install -m 755 $(TARGET) $(DESTDIR)/usr/local/bin/wise-device
 	install -d $(DESTDIR)/etc/wise-device
-	install -m 644 wise-device.conf.example $(DESTDIR)/etc/wise-device/wise-device.conf
+	install -m 600 wise-device.conf.example $(DESTDIR)/etc/wise-device/wise-device.conf
 	install -d $(DESTDIR)/usr/lib/systemd/system
 	install -m 644 wise-device.service $(DESTDIR)/usr/lib/systemd/system/wise-device.service
 

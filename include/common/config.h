@@ -45,6 +45,9 @@ typedef struct {
     char *rfid_serial_port; /**< RFID 串口设备 */
     int rfid_baudrate;      /**< RFID 波特率 */
     int rfid_power;         /**< RFID 功率 (dBm) */
+
+    // 请求签名（P4-04）
+    char *signature_secret; /**< X-Signature 的 HMAC 密钥；仅来自环境变量/配置文件，源码内无默认值 */
 } Config;
 
 /**
@@ -99,6 +102,17 @@ int config_secure_delete(const char *file_path);
  * @return 配置指针
  */
 const Config *config_get(void);
+
+/**
+ * 请求签名密钥（P4-04：全仓唯一来源）
+ *
+ * 取值顺序：环境变量 `WISE_API_SIGNATURE_SECRET` > 配置文件 `signature_secret` > NULL。
+ * 源码内**不保留任何默认密钥**（与 MQTT 口令、加密密钥同一策略，STD-SEC-01）；
+ * 未配置时返回 NULL，调用方必须记录错误并**中止**签名请求，禁止退化为"无签名/固定密钥"。
+ *
+ * @return 密钥字符串（只读，不应打印到日志），未配置返回 NULL
+ */
+const char *config_signature_secret(void);
 
 /**
  * 释放配置资源

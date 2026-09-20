@@ -22,8 +22,7 @@
 
 /* 全局 Token */
 static char *g_hb_token = NULL;
-/* 签名密钥 (应与 device_service.c 共享或从配置读取) */
-#define SIGNATURE_SECRET "wise-depot-api-signature-secret-key-2024"
+/* 签名密钥：统一走 config_signature_secret()（环境变量 / 配置文件注入，源码内无默认值，P4-04） */
 
 void heartbeat_set_token(const char *token) {
     if (g_hb_token) {
@@ -90,7 +89,12 @@ void heartbeat_task_execute(void *ctx) {
         snprintf(string_to_sign, sizeof(string_to_sign), "POST\n%s\n%s", uri_path, query_string);
         
         unsigned char hmac_result[32];
-        hmac_sha256(SIGNATURE_SECRET, strlen(SIGNATURE_SECRET), string_to_sign, strlen(string_to_sign), hmac_result);
+        const char *signing_secret = config_signature_secret();
+        if (signing_secret == NULL) {
+            LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); heartbeat skipped");
+            return;
+        }
+        hmac_sha256(signing_secret, strlen(signing_secret), string_to_sign, strlen(string_to_sign), hmac_result);
         
         size_t sig_len = 0;
         char *signature = base64_encode(hmac_result, 32, &sig_len);

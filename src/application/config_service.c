@@ -17,8 +17,6 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define SIGNATURE_SECRET "wise-depot-api-signature-secret-key-2024"
-
 int config_service_init(void) {
     LOG_INFO("Config service initialized");
     return 0;
@@ -134,7 +132,12 @@ void config_fetch_task(void *ctx) {
              uri_path, sign_query_string);
     
     unsigned char hmac_result[32];
-    hmac_sha256(SIGNATURE_SECRET, strlen(SIGNATURE_SECRET), string_to_sign, strlen(string_to_sign), hmac_result);
+    const char *signing_secret = config_signature_secret();
+    if (signing_secret == NULL) {
+        LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); config request aborted");
+        return;
+    }
+    hmac_sha256(signing_secret, strlen(signing_secret), string_to_sign, strlen(string_to_sign), hmac_result);
     
     size_t sig_len = 0;
     char *signature = base64_encode(hmac_result, 32, &sig_len);

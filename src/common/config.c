@@ -189,32 +189,9 @@ int config_fetch_remote(void) {
 int config_load(const char *config_file) {
     config_init_defaults();
 
-    // 1. Load from Environment Variables (Priority)
-    char *env_server = getenv("WISE_SERVER_URL");
-    if (env_server) {
-        xfree(g_config->server_url);
-        g_config->server_url = xstrdup(env_server);
-    }
-    
-    char *env_device = getenv("WISE_DEVICE_ID");
-    if (env_device) {
-        xfree(g_config->device_id);
-        g_config->device_id = xstrdup(env_device);
-    }
-
-    /* 心跳间隔同样支持环境变量覆盖（与 WISE_SERVER_URL / WISE_DEVICE_ID 一致），
-     * 便于部署方在不改配置文件的情况下调整；非法值忽略并保留原值。 */
-    char *env_heartbeat = getenv("WISE_DEVICE_HEARTBEAT");
-    if (env_heartbeat) {
-        int parsed = atoi(env_heartbeat);
-        if (parsed > 0) {
-            g_config->heartbeat_interval = parsed;
-        } else {
-            LOG_WARN("Ignoring invalid WISE_DEVICE_HEARTBEAT: %s", env_heartbeat);
-        }
-    }
-
-    // 3. Fallback to file if needed (Legacy support, optional)
+    /* 优先级（与 config.h 的文档一致）：默认值 < 配置文件 < 环境变量。
+     * P4-04：此处把「配置文件」放在「环境变量」之前解析——此前顺序相反，
+     * 文件会覆盖环境变量，与文档契约不符（现场用 systemd Environment= 注入时尤其反直觉）。 */
     if (config_file && access(config_file, R_OK) == 0) {
         FILE *fp = fopen(config_file, "r");
         if (fp) {
@@ -252,14 +229,58 @@ int config_load(const char *config_file) {
                         g_config->motor_trim_c = atof(val);
                     } else if (strcmp(key, "motor_trim_d") == 0) {
                         g_config->motor_trim_d = atof(val);
+                    } else if (strcmp(key, "signature_secret") == 0) {
+                        /* P4-04：请求签名密钥（单一来源之一；环境变量优先） */
+                        if (g_config->signature_secret) xfree(g_config->signature_secret);
+                        g_config->signature_secret = xstrdup(val);
                     }
                 }
             }
             fclose(fp);
         }
     }
-    
+
+    /* 环境变量覆盖（最高优先级）——放在文件解析之后，保证"环境变量 > 配置文件"的文档契约成立 */
+    char *env_server = getenv("WISE_SERVER_URL");
+    if (env_server) {
+        xfree(g_config->server_url);
+        g_config->server_url = xstrdup(env_server);
+    }
+
+    char *env_device = getenv("WISE_DEVICE_ID");
+    if (env_device) {
+        xfree(g_config->device_id);
+        g_config->device_id = xstrdup(env_device);
+    }
+
+    /* 心跳间隔同样支持环境变量覆盖（与 WISE_SERVER_URL / WISE_DEVICE_ID 一致），
+     * 便于部署方在不改配置文件的情况下调整；非法值忽略并保留原值。 */
+    char *env_heartbeat = getenv("WISE_DEVICE_HEARTBEAT");
+    if (env_heartbeat) {
+        int parsed = atoi(env_heartbeat);
+        if (parsed > 0) {
+            g_config->heartbeat_interval = parsed;
+        } else {
+            LOG_WARN("Ignoring invalid WISE_DEVICE_HEARTBEAT: %s", env_heartbeat);
+        }
+    }
+
+    /* P4-04：签名密钥只从环境变量 / 配置文件读取，源码内不留任何默认值。
+     * 与 MQTT 口令、加密密钥同一处理方式：缺失时保持 NULL，由签名点显式报错并中止请求。 */
+    char *env_signature = getenv("WISE_API_SIGNATURE_SECRET");
+    if (env_signature) {
+        if (g_config->signature_secret) xfree(g_config->signature_secret);
+        g_config->signature_secret = xstrdup(env_signature);
+    }
+    if (!g_config->signature_secret) {
+        LOG_WARN("WISE_API_SIGNATURE_SECRET not set; signed API requests are unavailable");
+    }
+
     return 0;
+}
+
+const char *config_signature_secret(void) {
+    return g_config ? g_config->signature_secret : NULL;
 }
 
 int config_update_from_json(const char *json_str) {
@@ -422,6 +443,8 @@ void config_free(void) {
         if (g_config->mqtt_host) xfree(g_config->mqtt_host);
         if (g_config->mqtt_username) xfree(g_config->mqtt_username);
         if (g_config->mqtt_password) xfree(g_config->mqtt_password);
+        /* P4-04：签名密钥 */
+        if (g_config->signature_secret) xfree(g_config->signature_secret);
         xfree(g_config);
         g_config = NULL;
     }

@@ -4,6 +4,8 @@
 /* Test Prototypes */
 extern void test_xmalloc(void);
 extern void test_config(void);
+extern void test_config_signature_secret(void);
+extern void test_config_env_overrides_file(void);
 extern void test_sys_monitor(void);
 extern void test_device_info(void);
 extern void test_scheduler(void);
@@ -40,6 +42,8 @@ int main(void) {
     
     RUN_TEST(test_xmalloc);
     RUN_TEST(test_config);
+    RUN_TEST(test_config_signature_secret);
+    RUN_TEST(test_config_env_overrides_file);
     RUN_TEST(test_sys_monitor);
     RUN_TEST(test_device_info);
     RUN_TEST(test_scheduler);

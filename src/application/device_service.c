@@ -48,8 +48,7 @@ static char *g_refresh_token = NULL;
 
 /* 版本号 */
 #define DEVICE_VERSION "v1.0.0"
-/* 签名密钥 (默认值，实际应从安全存储读取) */
-#define SIGNATURE_SECRET "wise-depot-api-signature-secret-key-2024"
+/* 签名密钥：统一走 config_signature_secret()（环境变量 / 配置文件注入，源码内无默认值，P4-04） */
 
 #ifndef NI_MAXHOST
 #define NI_MAXHOST 1025
@@ -337,7 +336,12 @@ int device_register(void) {
     snprintf(string_to_sign, sizeof(string_to_sign), "POST\n%s\n%s", uri_path, query_string);
     
     unsigned char hmac_result[32];
-    hmac_sha256(SIGNATURE_SECRET, strlen(SIGNATURE_SECRET), string_to_sign, strlen(string_to_sign), hmac_result);
+    const char *signing_secret = config_signature_secret();
+    if (signing_secret == NULL) {
+        LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); registration aborted");
+        return -1;
+    }
+    hmac_sha256(signing_secret, strlen(signing_secret), string_to_sign, strlen(string_to_sign), hmac_result);
     
     size_t sig_len = 0;
     char *signature = base64_encode(hmac_result, 32, &sig_len);

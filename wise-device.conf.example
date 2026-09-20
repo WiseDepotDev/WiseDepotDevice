@@ -1,0 +1,49 @@
+# /etc/wise-device/wise-device.conf —— 慧仓智控设备端配置示例（P4-04 配置外部化）
+#
+# 安装：
+#   sudo install -d -m 755 /etc/wise-device
+#   sudo install -m 600 wise-device.conf.example /etc/wise-device/wise-device.conf
+#   sudo editor /etc/wise-device/wise-device.conf     # 至少填写 server_url / device_id / signature_secret
+#
+# 权限：本文件含请求签名密钥，必须 0600（owner = 运行 wise-device 的账号），不得 world-readable。
+# 优先级：环境变量 > 本文件 > 源码内默认值（config.c 的实现与 config.h 的文档一致）。
+#
+# 等价环境变量（systemd 可用 Environment= 或 EnvironmentFile= 注入）：
+#   WISE_SERVER_URL            覆盖 server_url
+#   WISE_DEVICE_ID             覆盖 device_id
+#   WISE_DEVICE_HEARTBEAT      覆盖 heartbeat_interval（秒）
+#   WISE_API_SIGNATURE_SECRET  覆盖 signature_secret（**必须与服务端一致**）
+#   WISE_ENCRYPTION_KEY        本地数据加密密钥（当前尚无消费方）
+#   MQTT_HOST / MQTT_PORT / MQTT_USERNAME / MQTT_PASSWORD   MQTT 接入信息
+#
+# 说明：MQTT 口令、加密密钥与签名密钥在源码内**没有任何默认值**（STD-SEC-01），
+# 缺失时对应能力会被显式拒绝（签名请求直接中止并记 ERROR），不会退化成固定密钥。
+
+# ---- 服务端 ----
+# 设备注册 / 心跳 / 巡检上报的目标地址
+server_url=http://127.0.0.1:8080
+
+# 设备唯一标识（不填则取主机名）
+device_id=wise-device-001
+
+# ---- 心跳与轮询 ----
+# 心跳间隔（秒）。服务端下发的默认值同为 1，可在服务端调整后用远端配置覆盖
+heartbeat_interval=1
+
+# ---- 日志 ----
+log_path=/var/log/wise-device/wise-device.log
+# DEBUG / INFO / WARN / ERROR
+log_level=INFO
+
+# ---- 运动参数（现场标定值） ----
+move_speed_cm_s=19.7
+motor_trim_a=0.9
+motor_trim_b=-0.5
+motor_trim_c=0.9
+motor_trim_d=-0.5
+
+# ---- 请求签名（必须配置） ----
+# X-Signature 的 HMAC-SHA256 密钥，必须与服务端 wise.api.signature.secret
+# （即服务端环境变量 WISE_API_SIGNATURE_SECRET）完全一致。
+# 未配置时：签名请求不会被发出，日志会给出 ERROR 提示。
+signature_secret=REPLACE_WITH_THE_SAME_SECRET_AS_SERVER

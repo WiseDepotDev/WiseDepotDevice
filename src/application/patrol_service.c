@@ -38,8 +38,7 @@ typedef struct {
     size_t capacity;
 } patrol_scan_context_t;
 
-/* 签名密钥 (应与 device_service.c 共享或从配置读取) */
-#define SIGNATURE_SECRET "wise-depot-api-signature-secret-key-2024"
+/* 签名密钥：统一走 config_signature_secret()（环境变量 / 配置文件注入，源码内无默认值，P4-04） */
 
 #define MAX_TASK_QUEUE_SIZE 10
 
@@ -134,7 +133,12 @@ static int patrol_action_callback(const PatrolTask *task, uint8_t action_index, 
                 char string_to_sign[2048];
                 snprintf(string_to_sign, sizeof(string_to_sign), "PUT\n%s\n%s", uri_path, query_string);
                 unsigned char hmac_result[32];
-                hmac_sha256(SIGNATURE_SECRET, strlen(SIGNATURE_SECRET), string_to_sign, strlen(string_to_sign), hmac_result);
+                const char *signing_secret = config_signature_secret();
+                if (signing_secret == NULL) {
+                    LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); progress report skipped");
+                    continue; /* 进度上报不阻断巡检动作本身 */
+                }
+                hmac_sha256(signing_secret, strlen(signing_secret), string_to_sign, strlen(string_to_sign), hmac_result);
                 size_t sig_len = 0;
                 char *signature = base64_encode(hmac_result, 32, &sig_len);
                 char header_sign[256], header_time[64], header_nonce[64];
@@ -323,7 +327,12 @@ PatrolTask *patrol_service_fetch_task(void) {
         snprintf(string_to_sign, sizeof(string_to_sign), "GET\n%s\n%s", uri_path, query_string);
         
         unsigned char hmac_result[32];
-        hmac_sha256(SIGNATURE_SECRET, strlen(SIGNATURE_SECRET), 
+        const char *signing_secret = config_signature_secret();
+        if (signing_secret == NULL) {
+            LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); task fetch aborted");
+            return NULL;
+        }
+        hmac_sha256(signing_secret, strlen(signing_secret),
                     string_to_sign, strlen(string_to_sign), hmac_result);
         
         size_t sig_len = 0;
@@ -457,7 +466,12 @@ int patrol_service_report_result(const PatrolTask *task) {
         snprintf(string_to_sign, sizeof(string_to_sign), "PUT\n%s\n%s", uri_path, query_string);
         
         unsigned char hmac_result[32];
-        hmac_sha256(SIGNATURE_SECRET, strlen(SIGNATURE_SECRET), 
+        const char *signing_secret = config_signature_secret();
+        if (signing_secret == NULL) {
+            LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); result report aborted");
+            return -1;
+        }
+        hmac_sha256(signing_secret, strlen(signing_secret),
                     string_to_sign, strlen(string_to_sign), hmac_result);
         
         size_t sig_len = 0;
