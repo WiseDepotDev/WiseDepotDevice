@@ -1,5 +1,7 @@
 #include "unity.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 /* Test Prototypes */
 extern void test_xmalloc(void);
@@ -44,6 +46,7 @@ extern void test_patrol_task_from_json_rejects_bad_input(void);
 extern void test_patrol_task_id_is_numeric(void);
 extern void test_patrol_task_json_roundtrip(void);
 extern void test_patrol_task_json_from_response(void);
+extern void test_config_persistent_roundtrip(void);
 extern void test_wd_error_values_are_non_positive(void);
 extern void test_wd_error_codes_are_distinct(void);
 extern void test_wd_error_str_is_stable(void);
@@ -58,6 +61,21 @@ void tearDown(void) {
 }
 
 int main(void) {
+    /* P4-17：把测试的工作目录切到临时目录。
+     * 起因：config 持久化读回上线后，`test_config` 断言默认值时被仓库根目录里
+     * 遗留的 wise-device.dat 覆盖而失败——用例不该依赖"当前目录恰好干净"。
+     * 日志、盘点缓存、持久化配置都会写 CWD，统一在这里隔离。 */
+    char tmpl[] = "/tmp/wise-depot-tests-XXXXXX";
+    if (mkdtemp(tmpl) != NULL) {
+        if (chdir(tmpl) != 0) {
+            fprintf(stderr, "[WARN] 无法切到临时测试目录 %s\n", tmpl);
+        } else {
+            printf("[TEST] 测试工作目录: %s\n", tmpl);
+        }
+    } else {
+        fprintf(stderr, "[WARN] mkdtemp 失败，测试将在当前目录运行\n");
+    }
+
     UNITY_BEGIN();
     
     RUN_TEST(test_xmalloc);
@@ -66,6 +84,7 @@ int main(void) {
     RUN_TEST(test_config);
     RUN_TEST(test_config_signature_secret);
     RUN_TEST(test_config_env_overrides_file);
+    RUN_TEST(test_config_persistent_roundtrip);   /* P4-17 */
     RUN_TEST(test_sys_monitor);
     RUN_TEST(test_device_info);
     RUN_TEST(test_scheduler);

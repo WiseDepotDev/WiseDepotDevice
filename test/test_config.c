@@ -1,3 +1,4 @@
+#include "unity.h"
 #include "common/config.h"
 #include <assert.h>
 #include <string.h>
@@ -115,4 +116,46 @@ void test_config_env_overrides_file(void) {
     unsetenv("WISE_DEVICE_HEARTBEAT");
     unlink(tmp_file);
     config_free();
+}
+
+
+/** P4-17：持久化配置的读回（含"文件缺失/损坏不影响启动"两条兜底） */
+void test_config_persistent_roundtrip(void) {
+    /* 前提：测试运行器已把 CWD 切到临时目录，这里是干净起点 */
+    remove("wise-device.dat");
+
+    /* 1) 文件不存在时：读回应返回非零且不改动默认值 */
+    config_free();
+    config_load(NULL);
+    const wd_config_t *cfg = config_get();
+    TEST_ASSERT_NOT_NULL(cfg);
+    TEST_ASSERT_TRUE(config_load_persistent() != WD_OK);
+    TEST_ASSERT_EQUAL_STRING("http://localhost:8080", cfg->server_url);
+
+    /* 2) 落盘 → 重新加载 → 值被读回（用没有 env 覆盖的字段验证，避免测试间互相影响） */
+    cfg = config_get();
+    ((wd_config_t *)cfg)->motor_trim_a = 0.42f;
+    ((wd_config_t *)cfg)->task_poll_interval = 7;
+    TEST_ASSERT_EQUAL(WD_OK, config_save_persistent());
+
+    config_free();
+    config_load(NULL);
+    cfg = config_get();
+    TEST_ASSERT_TRUE(cfg->motor_trim_a > 0.41f && cfg->motor_trim_a < 0.43f);
+    TEST_ASSERT_EQUAL(7, cfg->task_poll_interval);
+
+    /* 3) 文件损坏：不影响启动，沿用默认值 */
+    FILE *fp = fopen("wise-device.dat", "w");
+    TEST_ASSERT_NOT_NULL(fp);
+    fputs("{ this is not json", fp);
+    fclose(fp);
+
+    config_free();
+    config_load(NULL);
+    cfg = config_get();
+    TEST_ASSERT_NOT_NULL(cfg);
+    TEST_ASSERT_EQUAL_STRING("http://localhost:8080", cfg->server_url);
+    TEST_ASSERT_TRUE(cfg->move_speed_cm_s > 19.6f && cfg->move_speed_cm_s < 19.8f);
+
+    remove("wise-device.dat");
 }

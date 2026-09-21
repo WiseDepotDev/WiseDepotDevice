@@ -182,7 +182,12 @@ wd_error_t config_load(const char *config_file) {
         return WD_ERR_NOMEM;
     }
 
-    /* 优先级（与 config.h 的文档一致）：默认值 < 配置文件 < 环境变量。
+    /* P4-17：先把上次落盘的远端配置快照读回来（最弱的一档），
+     * 再让配置文件与环境变量依次覆盖它 → 优先级：默认值 < 快照 < 文件 < env。
+     * 读回失败只告警（首次启动时文件本就不存在）。 */
+    (void)config_load_persistent();
+
+    /* 优先级（与 config.h 的文档一致）：默认值 < 持久化快照 < 配置文件 < 环境变量。
      * P4-04：此处把「配置文件」放在「环境变量」之前解析——此前顺序相反，
      * 文件会覆盖环境变量，与文档契约不符（现场用 systemd Environment= 注入时尤其反直觉）。 */
     if (config_file && access(config_file, R_OK) == 0) {
@@ -439,6 +444,107 @@ wd_error_t config_update_from_json(const char *json_str) {
  * 或环境变量读取，从不写入本文件，因此无需加密；旧名 config_save_encrypted()
  * 既不真实也容易误导（源码里曾长期挂着 TODO: Implement AES encryption），已改为现名。
  */
+/**
+ * 从 wise-device.dat 读回配置快照（P4-17）
+ *
+ * 只应用**非敏感**字段（与 config_save_persistent 写入的字段集一一对应）；
+ * 敏感值（签名密钥 / MQTT 口令 / 加密密钥）从不落在该文件里，也就无从读回。
+ */
+wd_error_t config_load_persistent(void) {
+    if (!g_config) {
+        return WD_ERR_STATE;
+    }
+    if (access(PERSISTENT_CONFIG_FILE, R_OK) != 0) {
+        return WD_ERR_NOT_FOUND; /* 首次启动的正常情况，不告警 */
+    }
+
+    FILE *fp = fopen(PERSISTENT_CONFIG_FILE, "r");
+    if (!fp) {
+        LOG_WARN("持久化配置存在但无法打开：%s", PERSISTENT_CONFIG_FILE);
+        return WD_ERR_IO;
+    }
+
+    char buf[8192];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, fp);
+    fclose(fp);
+    buf[n] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) {
+        LOG_WARN("持久化配置解析失败（忽略，沿用默认值/配置文件/环境变量）");
+        return WD_ERR_PARAM;
+    }
+
+    cJSON *item = NULL;
+
+    item = cJSON_GetObjectItem(root, "server_url");
+    if (cJSON_IsString(item)) {
+        if (g_config->server_url) xfree(g_config->server_url);
+        g_config->server_url = xstrdup_try(item->valuestring);
+    }
+
+    item = cJSON_GetObjectItem(root, "device_id");
+    if (cJSON_IsString(item)) {
+        if (g_config->device_id) xfree(g_config->device_id);
+        g_config->device_id = xstrdup_try(item->valuestring);
+    }
+
+    item = cJSON_GetObjectItem(root, "heartbeatInterval");
+    if (cJSON_IsNumber(item)) g_config->heartbeat_interval = item->valueint;
+
+    item = cJSON_GetObjectItem(root, "apiBaseUrl");
+    if (cJSON_IsString(item)) {
+        if (g_config->api_base_url) xfree(g_config->api_base_url);
+        g_config->api_base_url = xstrdup_try(item->valuestring);
+    }
+
+    item = cJSON_GetObjectItem(root, "taskPollInterval");
+    if (cJSON_IsNumber(item)) g_config->task_poll_interval = item->valueint;
+
+    item = cJSON_GetObjectItem(root, "logUploadStrategy");
+    if (cJSON_IsString(item)) {
+        if (g_config->log_upload_strategy) xfree(g_config->log_upload_strategy);
+        g_config->log_upload_strategy = xstrdup_try(item->valuestring);
+    }
+
+    item = cJSON_GetObjectItem(root, "networkTimeout");
+    if (cJSON_IsNumber(item)) g_config->network_timeout = item->valueint;
+
+    item = cJSON_GetObjectItem(root, "version");
+    if (cJSON_IsString(item)) {
+        if (g_config->version) xfree(g_config->version);
+        g_config->version = xstrdup_try(item->valuestring);
+    }
+
+    item = cJSON_GetObjectItem(root, "move_speed_cm_s");
+    if (cJSON_IsNumber(item)) g_config->move_speed_cm_s = (float)item->valuedouble;
+
+    item = cJSON_GetObjectItem(root, "motor_trim_a");
+    if (cJSON_IsNumber(item)) g_config->motor_trim_a = (float)item->valuedouble;
+
+    item = cJSON_GetObjectItem(root, "motor_trim_b");
+    if (cJSON_IsNumber(item)) g_config->motor_trim_b = (float)item->valuedouble;
+
+    item = cJSON_GetObjectItem(root, "motor_trim_c");
+    if (cJSON_IsNumber(item)) g_config->motor_trim_c = (float)item->valuedouble;
+
+    item = cJSON_GetObjectItem(root, "motor_trim_d");
+    if (cJSON_IsNumber(item)) g_config->motor_trim_d = (float)item->valuedouble;
+
+    item = cJSON_GetObjectItem(root, "rfidBaudrate");
+    if (cJSON_IsNumber(item)) g_config->rfid_baudrate = item->valueint;
+
+    item = cJSON_GetObjectItem(root, "rfidPower");
+    if (cJSON_IsNumber(item)) g_config->rfid_power = item->valueint;
+
+    item = cJSON_GetObjectItem(root, "rfidAddress");
+    if (cJSON_IsNumber(item)) g_config->rfid_address = item->valueint;
+
+    cJSON_Delete(root);
+    LOG_INFO("已读回持久化配置快照：%s", PERSISTENT_CONFIG_FILE);
+    return WD_OK;
+}
+
 wd_error_t config_save_persistent(void) {
     if (!g_config) return WD_ERR_STATE;
     

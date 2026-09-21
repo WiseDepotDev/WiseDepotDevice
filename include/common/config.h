@@ -91,6 +91,17 @@ wd_error_t config_update_from_json(const char *json_str);
  * @return 0 成功，-1 失败
  */
 /**
+ * @brief 从 `wise-device.dat` 读回上次落盘的配置快照（P4-17）。
+ *
+ * 优先级链（与 config_load 的实现一致）：**默认值 < 持久化快照 < 配置文件 < 环境变量**。
+ * 快照代表"上次服务端下发的远端配置"，是最弱的一档：任何本地配置都能覆盖它。
+ * 文件缺失/解析失败/内存不足时只告警并返回非零，**不影响启动**。
+ *
+ * @return WD_OK 读回并应用成功；其余为负的错误码（调用方可忽略）
+ */
+wd_error_t config_load_persistent(void);
+
+/**
  * @brief 把当前配置的**非敏感快照**序列化落盘（`wise-device.dat`）。
  *
  * 安全边界（M-08 实测结论，2026-02-27）：本文件**不含任何口令、令牌或密钥**——
