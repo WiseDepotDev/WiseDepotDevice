@@ -29,6 +29,12 @@ extern void test_patrol_task_to_json_clamps_action_count(void);
 /* P4-03 日志并发安全 */
 extern void test_logger_multithreaded_output_is_intact(void);
 extern void test_logger_reopen_keeps_logging(void);
+/* P4-07 任务生命周期与取消语义 */
+extern void test_patrol_cancel_is_per_task(void);
+extern void test_patrol_execute_cancelled_midway(void);
+extern void test_patrol_execute_cancelled_on_last_action(void);
+extern void test_patrol_execute_completes_normally(void);
+extern void test_patrol_new_task_is_not_cancelled(void);
 
 /* Setup and Teardown for Unity */
 void setUp(void) {
@@ -75,6 +81,13 @@ int main(void) {
     // 日志并发安全（P4-03）
     RUN_TEST(test_logger_multithreaded_output_is_intact);
     RUN_TEST(test_logger_reopen_keeps_logging);
+
+    // 任务生命周期与取消语义（P4-07）
+    RUN_TEST(test_patrol_cancel_is_per_task);
+    RUN_TEST(test_patrol_execute_cancelled_midway);
+    RUN_TEST(test_patrol_execute_cancelled_on_last_action);
+    RUN_TEST(test_patrol_execute_completes_normally);
+    RUN_TEST(test_patrol_new_task_is_not_cancelled);
 
     return UNITY_END();
 }

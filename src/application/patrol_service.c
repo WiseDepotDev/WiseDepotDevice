@@ -111,6 +111,11 @@ static int patrol_action_callback(const PatrolTask *task, uint8_t action_index, 
         }
         
         while (elapsed_ms < action->duration_ms) {
+            /* P4-07：动作执行期间也轮询本任务的取消标志，保证取消及时生效 */
+            if (task->cancel_requested) {
+                motor_stop_all();
+                return 1; /* 由上层循环标记 CANCELLED（不当作动作失败） */
+            }
             int n = rfid_service_scan_only(batch, PATROL_SCAN_BATCH_SIZE);
             if (n > 0 && scan_ctx) {
                 merge_scan_into_context(scan_ctx, batch, n);
@@ -191,14 +196,17 @@ static int patrol_action_callback(const PatrolTask *task, uint8_t action_index, 
 static struct {
     PatrolServiceConfig config;     /**< 服务配置 */
     char *token;                    /**< 认证Token */
-    PatrolTask *current_task;       /**< 当前执行的任务 */
+    PatrolTask *current_task;       /**< 当前执行的任务（归执行线程所有，cleanup 不得释放） */
     PatrolTask *task_queue[MAX_TASK_QUEUE_SIZE]; /**< 任务队列 */
     int queue_head;                 /**< 队列头 */
     int queue_tail;                 /**< 队列尾 */
     int queue_count;                /**< 队列任务数量 */
-    pthread_mutex_t queue_mutex;    /**< 队列互斥锁 */
+    pthread_mutex_t queue_mutex;    /**< 队列互斥锁（同时保护 worker_running/shutting_down） */
+    pthread_cond_t worker_done;     /**< 执行线程结束通知（P4-07：cleanup 用它等待，避免 use-after-free） */
+    bool worker_running;            /**< 是否有执行线程在跑 */
+    bool shutting_down;             /**< 关闭中：不再接受/启动新任务 */
     bool initialized;               /**< 初始化标志 */
-} g_patrol_service = {0};
+} g_patrol_service = {.worker_done = PTHREAD_COND_INITIALIZER};
 
 /**
  * 获取默认巡检服务配置
@@ -232,6 +240,9 @@ int patrol_service_init(const PatrolServiceConfig *config) {
     g_patrol_service.queue_head = 0;
     g_patrol_service.queue_tail = 0;
     g_patrol_service.queue_count = 0;
+    /* P4-07：重新初始化时复位生命周期标志（worker_done 条件变量可复用，无需重建） */
+    g_patrol_service.worker_running = false;
+    g_patrol_service.shutting_down = false;
     pthread_mutex_init(&g_patrol_service.queue_mutex, NULL);
     g_patrol_service.initialized = true;
     
@@ -572,8 +583,11 @@ static void *patrol_task_thread_func(void *arg) {
     // 4. 执行巡检动作（移动/扫描时只做 rfid_service_scan_only 并累积到 scan_ctx）
     int result = patrol_task_execute(task, patrol_action_callback, &scan_ctx);
     
-    // 设置任务状态为已完成
-    task->status = PATROL_TASK_STATUS_COMPLETED;
+    /* P4-07：不要覆盖执行阶段得出的状态——被取消/失败的任务必须如实上报，
+     * 原实现无条件写成 COMPLETED，导致"取消后仍显示已完成"。 */
+    if (result == 0 && task->status == PATROL_TASK_STATUS_RUNNING) {
+        task->status = PATROL_TASK_STATUS_COMPLETED;
+    }
     
     // 5. 巡检结束：用累积的 RFID 与预期库存比对，生成报告并上传服务端（服务端分发给手机展示差异列表）
     inventory_report_t *report = inventory_process_scan(scan_ctx.tags, scan_ctx.count);
@@ -596,6 +610,9 @@ static void *patrol_task_thread_func(void *arg) {
     
     pthread_mutex_lock(&g_patrol_service.queue_mutex);
     g_patrol_service.current_task = NULL;
+    g_patrol_service.worker_running = false;
+    /* 通知 cleanup：执行线程已停止持有任务（P4-07：避免 cleanup 释放正在使用的任务） */
+    pthread_cond_broadcast(&g_patrol_service.worker_done);
     pthread_mutex_unlock(&g_patrol_service.queue_mutex);
     
     check_and_start_next_task();
@@ -605,6 +622,10 @@ static void *patrol_task_thread_func(void *arg) {
 
 /**
  * 启动指定的巡检任务（如果当前有任务在运行，则加入队列）
+ *
+ * 所有权契约（P4-07）：
+ * - 返回 0：任务所有权**移交给服务**（服务负责执行后释放，或在 cleanup 时释放队列中的任务）；
+ * - 返回 -1：服务**不接管**，调用方仍需自行释放 task（避免"失败后任务丢失/泄漏"）。
  */
 int patrol_service_start_task(PatrolTask *task) {
     if (!g_patrol_service.initialized) {
@@ -616,6 +637,12 @@ int patrol_service_start_task(PatrolTask *task) {
     
     pthread_mutex_lock(&g_patrol_service.queue_mutex);
     
+    if (g_patrol_service.shutting_down) {
+        LOG_WARN("Patrol service is shutting down, rejecting task: %s", task->id);
+        pthread_mutex_unlock(&g_patrol_service.queue_mutex);
+        return -1;
+    }
+    
     // Check if current task is running
     if (g_patrol_service.current_task == NULL) {
         g_patrol_service.current_task = task;
@@ -625,8 +652,9 @@ int patrol_service_start_task(PatrolTask *task) {
             LOG_ERROR("Failed to create patrol task thread");
             g_patrol_service.current_task = NULL;
             pthread_mutex_unlock(&g_patrol_service.queue_mutex);
-            return -1;
+            return -1; /* 所有权仍属调用方 */
         }
+        g_patrol_service.worker_running = true;
         pthread_detach(thread_id);
     } else {
         // Add to queue
@@ -649,6 +677,11 @@ int patrol_service_start_task(PatrolTask *task) {
 static void check_and_start_next_task(void) {
     pthread_mutex_lock(&g_patrol_service.queue_mutex);
     
+    if (g_patrol_service.shutting_down) {
+        pthread_mutex_unlock(&g_patrol_service.queue_mutex);
+        return;
+    }
+    
     if (g_patrol_service.current_task == NULL && g_patrol_service.queue_count > 0) {
         PatrolTask *next_task = g_patrol_service.task_queue[g_patrol_service.queue_head];
         // Move head pointer
@@ -663,10 +696,10 @@ static void check_and_start_next_task(void) {
         if (pthread_create(&thread_id, NULL, patrol_task_thread_func, next_task) != 0) {
             LOG_ERROR("Failed to create patrol task thread");
             g_patrol_service.current_task = NULL;
-            // If failed to start, we lost the task. In robust system, retry or put back.
-            // For now, just log and continue.
+            /* 该任务已从队列出队 → 服务持有所有权，启动失败时在此释放 */
             patrol_task_free(next_task);
         } else {
+            g_patrol_service.worker_running = true;
             pthread_detach(thread_id);
         }
     }
@@ -693,7 +726,12 @@ int patrol_service_execute_task(void) {
         return 0;
     }
     
-    return patrol_service_start_task(task);
+    /* P4-07 所有权契约：start_task 失败时服务不接管，调用方负责释放 */
+    int rc = patrol_service_start_task(task);
+    if (rc != 0) {
+        patrol_task_free(task);
+    }
+    return rc;
 }
 
 /**
@@ -716,17 +754,53 @@ void patrol_service_run(void *ctx) {
 
 /**
  * 释放巡检服务资源
+ *
+ * P4-07 生命周期契约：
+ * 1. 先置 shutting_down，阻止新任务进入；
+ * 2. 取消当前任务（每任务标志），并**等待执行线程真正结束**（worker_done 条件变量）；
+ * 3. 当前任务由执行线程自己释放（cleanup 绝不 free 正在使用的 task —— 原实现就是 use-after-free）；
+ * 4. 队列中尚未执行的任务全部释放。
  */
 void patrol_service_cleanup(void) {
     if (!g_patrol_service.initialized) {
         return;
     }
     
-    if (g_patrol_service.current_task) {
-        patrol_task_cancel(g_patrol_service.current_task);
-        patrol_task_free(g_patrol_service.current_task);
-        g_patrol_service.current_task = NULL;
+    pthread_mutex_lock(&g_patrol_service.queue_mutex);
+    g_patrol_service.shutting_down = true;
+    PatrolTask *running = g_patrol_service.current_task;
+    pthread_mutex_unlock(&g_patrol_service.queue_mutex);
+    
+    if (running) {
+        patrol_task_cancel(running);
+        
+        /* 等待执行线程结束（最多 30s，正常情况会很快返回） */
+        struct timespec deadline;
+        clock_gettime(CLOCK_REALTIME, &deadline);
+        deadline.tv_sec += 30;
+        
+        pthread_mutex_lock(&g_patrol_service.queue_mutex);
+        while (g_patrol_service.worker_running) {
+            if (pthread_cond_timedwait(&g_patrol_service.worker_done, &g_patrol_service.queue_mutex, &deadline) != 0) {
+                LOG_ERROR("等待巡检线程结束超时，放弃等待（避免释放正在使用的任务）");
+                break;
+            }
+        }
+        pthread_mutex_unlock(&g_patrol_service.queue_mutex);
     }
+    
+    /* 释放队列中未执行的任务 */
+    pthread_mutex_lock(&g_patrol_service.queue_mutex);
+    while (g_patrol_service.queue_count > 0) {
+        PatrolTask *queued = g_patrol_service.task_queue[g_patrol_service.queue_head];
+        g_patrol_service.task_queue[g_patrol_service.queue_head] = NULL;
+        g_patrol_service.queue_head = (g_patrol_service.queue_head + 1) % MAX_TASK_QUEUE_SIZE;
+        g_patrol_service.queue_count--;
+        if (queued) {
+            patrol_task_free(queued);
+        }
+    }
+    pthread_mutex_unlock(&g_patrol_service.queue_mutex);
     
     patrol_service_clear_token();
     g_patrol_service.initialized = false;

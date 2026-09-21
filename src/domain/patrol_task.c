@@ -53,8 +53,7 @@ static const struct {
     {PATROL_TASK_STATUS_CANCELLED, "cancelled"}
 };
 
-/* 全局取消标志 */
-static volatile bool g_cancel_flag = false;
+/* 取消标志已移入 PatrolTask.cancel_requested（P4-07）：不再有全局取消状态 */
 
 /**
  * 获取动作类型名称
@@ -263,12 +262,12 @@ int patrol_task_execute(PatrolTask *task, PatrolTaskCallback callback, void *con
     task->status = PATROL_TASK_STATUS_RUNNING;
     task->current_action_index = 0;
     task->error_message[0] = '\0';
-    g_cancel_flag = false;
+    task->cancel_requested = false; /* P4-07：每次执行从"未取消"开始 */
     
     LOG_INFO("Starting patrol task: %s (%d actions)", task->id, task->action_count);
     
     for (uint8_t i = 0; i < task->action_count; i++) {
-        if (g_cancel_flag) {
+        if (task->cancel_requested) {
             LOG_INFO("Patrol task cancelled: %s", task->id);
             task->status = PATROL_TASK_STATUS_CANCELLED;
             motor_stop_all();
@@ -308,6 +307,14 @@ int patrol_task_execute(PatrolTask *task, PatrolTaskCallback callback, void *con
         }
     }
     
+    /* P4-07：末个动作执行期间被取消也要如实标记（否则会被当成 COMPLETED） */
+    if (task->cancel_requested) {
+        LOG_INFO("Patrol task cancelled: %s", task->id);
+        task->status = PATROL_TASK_STATUS_CANCELLED;
+        motor_stop_all();
+        return -1;
+    }
+
     task->status = PATROL_TASK_STATUS_COMPLETED;
     LOG_INFO("Patrol task completed: %s", task->id);
     
@@ -327,7 +334,8 @@ int patrol_task_cancel(PatrolTask *task) {
         return -1;
     }
     
-    g_cancel_flag = true;
+    /* P4-07：只置本任务的标志；执行线程在动作之间/动作内部轮询它 */
+    task->cancel_requested = true;
     return 0;
 }
 

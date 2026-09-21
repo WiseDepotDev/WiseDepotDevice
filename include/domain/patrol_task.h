@@ -85,6 +85,10 @@ typedef struct {
 
 /**
  * 巡检任务结构体
+ *
+ * 取消语义（P4-07）：取消标志是**每个任务自己的字段**（`cancel_requested`），
+ * 不再使用全局变量——否则取消任务 A 会连带影响任务 B，且队列/多任务场景无法表达。
+ * 该字段由执行线程读取、外部线程写入，声明为 volatile。
  */
 typedef struct {
     char id[PATROL_TASK_ID_MAX_LEN];           /**< 任务ID */
@@ -96,6 +100,7 @@ typedef struct {
     uint8_t point_count;                       /**< 巡检点数量 */
     PatrolTaskStatus status;                   /**< 任务状态 */
     uint8_t current_action_index;              /**< 当前执行的动作索引 */
+    volatile bool cancel_requested;            /**< 取消请求（P4-07：每任务独立，无全局） */
     char error_message[256];                   /**< 错误信息 */
 } PatrolTask;
 
