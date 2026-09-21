@@ -15,6 +15,11 @@
 #   WISE_API_SIGNATURE_SECRET  覆盖 signature_secret（**必须与服务端一致**）
 #   WISE_ENCRYPTION_KEY        本地数据加密密钥（当前尚无消费方）
 #   MQTT_HOST / MQTT_PORT / MQTT_USERNAME / MQTT_PASSWORD   MQTT 接入信息
+#   WISE_RFID_SERIAL_PORT      覆盖 rfid_serial_port
+#   WISE_RFID_BAUDRATE         覆盖 rfid_baudrate（>0；非法值忽略并告警）
+#   WISE_RFID_POWER            覆盖 rfid_power（0..33；越界忽略并告警）
+#   WISE_RFID_ADDRESS          覆盖 rfid_address（0..255，支持 0x 写法；越界忽略并告警）
+#   WISE_RFID_LEGACY_FRAMES    覆盖 rfid_legacy_frames（0/1）
 #
 # 说明：MQTT 口令、加密密钥与签名密钥在源码内**没有任何默认值**（STD-SEC-01），
 # 缺失时对应能力会被显式拒绝（签名请求直接中止并记 ERROR），不会退化成固定密钥。
@@ -41,6 +46,28 @@ motor_trim_a=0.9
 motor_trim_b=-0.5
 motor_trim_c=0.9
 motor_trim_d=-0.5
+
+# ---- RFID 读头（P4-12）----
+# 串口设备：USB 转串口通常是 /dev/ttyUSB0，板载串口是 /dev/ttyS*；
+# 用 `ls -l /dev/serial/by-id/` 可以拿到不随插拔变化的稳定路径。
+rfid_serial_port=/dev/ttyUSB0
+
+# 波特率：仅支持 9600 / 19200 / 38400 / 57600 / 115200（其他值会告警并回落到 57600）。
+# 必须与读头实际波特率一致，否则表现为"命令写出去但读不到响应"。
+rfid_baudrate=57600
+
+# 功率（dBm，0..33）：仅在新帧路径（rfid_legacy_frames=0）下初始化时下发；
+# 设为 0 表示不下发、沿用读头自身设定。
+rfid_power=26
+
+# 读头地址：0xFF = 广播（默认为此，单个读头场景够用）。
+# 多读头共用一条总线时必须给每个读头配置各自的 0x00..0xFE 地址，否则会互相应答。
+rfid_address=0xFF
+
+# 旧帧路径开关：1 = 沿用历史行为（广播地址、readData 旧布局、初始化不下发功率），
+# 0 = 新路径（按配置地址组帧、readData 按手册对齐并校验 EPC 为整字、初始化下发功率）。
+# 现场首次切换新路径前，请先用 0 状态做一次真机回归（P4-12 的真机验证项）。
+rfid_legacy_frames=1
 
 # ---- 请求签名（必须配置） ----
 # X-Signature 的 HMAC-SHA256 密钥，必须与服务端 wise.api.signature.secret

@@ -9,6 +9,9 @@
 typedef struct {
     char serial_port[64];
     int baudrate;
+    int power_dbm;       /**< P4-12：初始化时下发的功率（0 = 不下发） */
+    int address;         /**< P4-12：读头地址（0xFF = 广播） */
+    bool legacy_frames;  /**< P4-12：true = 沿用旧帧路径 */
     const char *server_url; // Base URL for API
     const char *mqtt_topic;
 } rfid_service_config_t;

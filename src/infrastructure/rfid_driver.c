@@ -64,32 +64,60 @@ static int serial_read(uint8_t *buffer, size_t len, int timeout_ms) {
     return total_read;
 }
 
+/** P4-12：当前生效的读头地址——旧路径固定广播 0xFF，新路径用配置地址 */
+static uint8_t frame_address(void) {
+    if (current_config.legacy_frames) return 0xFF;
+    return (uint8_t)(current_config.address & 0xFF);
+}
+
+size_t rfid_build_frame(uint8_t address, uint8_t cmd, const uint8_t *data, size_t data_len,
+                        uint8_t *out_frame, size_t out_cap) {
+    if (!out_frame) return 0;
+    if (data_len > 0 && !data) return 0;
+    /* Len 是 1 字节，最大 255：4 + data_len <= 255 且整帧要放得下 out_cap */
+    if (data_len > RFID_FRAME_MAX_LEN - 5) return 0;
+    size_t total = 5 + data_len;
+    if (total > out_cap) return 0;
+
+    out_frame[0] = (uint8_t)(4 + data_len); // Len 不含自身
+    out_frame[1] = address;
+    out_frame[2] = cmd;
+    if (data_len > 0) {
+        memcpy(&out_frame[3], data, data_len);
+    }
+
+    // CRC 覆盖 Len 到 Data
+    uint16_t crc = calculate_crc16(out_frame, 3 + data_len);
+    out_frame[3 + data_len] = (uint8_t)(crc & 0xFF);
+    out_frame[4 + data_len] = (uint8_t)((crc >> 8) & 0xFF);
+    return total;
+}
+
+/** P4-12：波特率 → termios 速度常量；不支持的值返回 (speed_t)-1 */
+static speed_t rfid_baud_to_speed(int baud) {
+    switch (baud) {
+        case 9600:   return B9600;
+        case 19200:  return B19200;
+        case 38400:  return B38400;
+        case 57600:  return B57600;
+        case 115200: return B115200;
+#ifdef B230400
+        case 230400: return B230400;
+#endif
+        default:     return (speed_t)-1;
+    }
+}
+
 // Send command and receive response
 static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t data_len, uint8_t *response, size_t max_resp_len) {
     if (serial_fd < 0) return WD_ERR_STATE;
 
     uint8_t frame[RFID_FRAME_MAX_LEN];
-    size_t frame_len = 0;
-
-    // Build Request Frame
-    // Len(1) | Adr(1) | Cmd(1) | Data(...) | CRC_LSB | CRC_MSB
-    // Len = 1 (Adr) + 1 (Cmd) + data_len + 2 (CRC) = 4 + data_len
-    
-    if (4 + data_len > RFID_FRAME_MAX_LEN) return WD_ERR_PARAM;
-
-    frame[0] = (uint8_t)(4 + data_len); // Len doesn't include itself
-    frame[1] = addr;
-    frame[2] = cmd;
-    if (data && data_len > 0) {
-        memcpy(&frame[3], data, data_len);
+    size_t frame_len = rfid_build_frame(addr, cmd, data, data_len, frame, sizeof(frame));
+    if (frame_len == 0) {
+        LOG_ERROR("组装请求帧失败：cmd=0x%02X data_len=%zu 超出帧容量", cmd, data_len);
+        return WD_ERR_PARAM;
     }
-    
-    // Calculate CRC from Len to Data
-    uint16_t crc = calculate_crc16(frame, 3 + data_len);
-    frame[3 + data_len] = (uint8_t)(crc & 0xFF);
-    frame[4 + data_len] = (uint8_t)((crc >> 8) & 0xFF);
-    
-    frame_len = 5 + data_len; // Total bytes to send (including Len byte)
 
     // Clear input buffer
     tcflush(serial_fd, TCIFLUSH);
@@ -179,14 +207,15 @@ wd_error_t rfid_init(const rfid_config_t *config) {
         return WD_ERR_IO;
     }
 
-    cfsetospeed(&tty, B57600); // Default speed
-    cfsetispeed(&tty, B57600);
-
-    // Override if baudrate is standard (simplified for now)
-    if (config->baudrate == 115200) {
-        cfsetospeed(&tty, B115200);
-        cfsetispeed(&tty, B115200);
+    /* P4-12：波特率表格化；不支持的值不再静默沿用 57600，而是显式告警 */
+    speed_t speed = rfid_baud_to_speed(config->baudrate);
+    if (speed == (speed_t)-1) {
+        LOG_WARN("Unsupported RFID baudrate %d; falling back to 57600 "
+                 "(supported: 9600/19200/38400/57600/115200)", config->baudrate);
+        speed = B57600;
     }
+    cfsetospeed(&tty, speed);
+    cfsetispeed(&tty, speed);
 
     tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;     // 8-bit chars
     tty.c_cflag |= (CLOCAL | CREAD);                // ignore modem controls, enable reading
@@ -209,6 +238,16 @@ wd_error_t rfid_init(const rfid_config_t *config) {
         close(serial_fd);
         serial_fd = -1;
         return WD_ERR_IO;
+    }
+
+    /* P4-12：功率配置化下发。只在"新帧路径"（legacy_frames=false）且配置了非零功率时执行；
+     * 旧路径保持"初始化不下发任何配置命令"的历史行为。下发失败不阻断初始化（读头可能不支持
+     * 该命令或使用默认功率），但必须留下 WARN，避免"以为设了其实没设"。 */
+    if (!config->legacy_frames && config->power_dbm > 0) {
+        wd_error_t power_rc = rfid_set_power(config->power_dbm);
+        if (power_rc != WD_OK) {
+            LOG_WARN("下发 RFID 功率失败（%s）；读头可能仍在默认功率", wd_error_str(power_rc));
+        }
     }
 
     return 0;
@@ -234,7 +273,7 @@ int rfid_set_mode_response(void) {
     uint8_t data[6] = {0x00, 0x02, 0x01, 0x00, 0x06, 0x05};
     uint8_t resp[RFID_FRAME_MAX_LEN];
     
-    int ret = send_command(0xFF, 0x35, data, 6, resp, sizeof(resp));
+    int ret = send_command(frame_address(), 0x35, data, 6, resp, sizeof(resp));
     if (ret < 0) return ret;
     
     // Check status
@@ -246,6 +285,28 @@ int rfid_set_mode_response(void) {
     return 0;
 }
 
+wd_error_t rfid_set_power(int dbm) {
+    /* CMD_SET_POWER (0x2F)：Data = Power(1)，单位 dBm，手册有效范围 0..33 */
+    if (dbm < 0 || dbm > 33) {
+        LOG_ERROR("RFID power out of range: %d dBm (valid 0..33)", dbm);
+        return WD_ERR_PARAM;
+    }
+
+    uint8_t data[1] = { (uint8_t)dbm };
+    uint8_t resp[RFID_FRAME_MAX_LEN];
+
+    int ret = send_command(frame_address(), 0x2F, data, 1, resp, sizeof(resp));
+    if (ret < 0) {
+        return (wd_error_t)ret;
+    }
+    if (resp[3] != 0x00) {
+        LOG_ERROR("Set power failed with status: 0x%02X", resp[3]);
+        return WD_ERR_PROTOCOL;
+    }
+    LOG_INFO("RFID reader power set to %d dBm", dbm);
+    return WD_OK;
+}
+
 int rfid_inventory(rfid_tag_t *tags, size_t max_tags) {
     // CMD_INVENTORY (0x01)
     // Data: AdrTID(1), LenTID(1) - Optional, assume EPC inventory if not present or empty
@@ -254,7 +315,7 @@ int rfid_inventory(rfid_tag_t *tags, size_t max_tags) {
     uint8_t resp[RFID_FRAME_MAX_LEN];
     int count = 0;
     
-    int ret = send_command(0xFF, 0x01, NULL, 0, resp, sizeof(resp));
+    int ret = send_command(frame_address(), 0x01, NULL, 0, resp, sizeof(resp));
     if (ret < 0) return ret;
     
     uint8_t status = resp[3];
@@ -318,23 +379,42 @@ int rfid_read_data(const uint8_t *epc, uint8_t epc_len,
     // CMD_READ_DATA (0x02)
     // Data: ENum(1) | EPC(N) | Mem(1) | WordPtr(1) | Num(1) | Pwd(4) | [Mask...]
     
+    if (!epc || epc_len == 0 || !out_data) {
+        return WD_ERR_PARAM;
+    }
+
     uint8_t data[64];
     int idx = 0;
-    
-    data[idx++] = epc_len / 2; // ENum is in Words (2 bytes)
+    const int fixed_tail = 3 + 4; /* Mem + WordPtr + Num + Pwd */
+
+    /* P4-12：ENum 以"字"为单位，因此 EPC 长度必须是偶数；旧实现直接 /2，
+     * 奇数长度会被静默截断（手册不符）。该校验只在"新帧路径"生效，旧路径保持旧行为。 */
+    if (!current_config.legacy_frames && (epc_len % 2) != 0) {
+        LOG_ERROR("READ DATA 要求 EPC 长度为整字（偶数），实际 %u 字节", (unsigned)epc_len);
+        return WD_ERR_PARAM;
+    }
+
+    /* 缓冲区越界守卫：无论新旧路径都必须成立（1 + epc_len + 7 <= sizeof(data)） */
+    if (1 + (int)epc_len + fixed_tail > (int)sizeof(data)) {
+        LOG_ERROR("EPC 过长：%u 字节，READ DATA 帧最多 %d 字节",
+                  (unsigned)epc_len, (int)sizeof(data) - fixed_tail - 1);
+        return WD_ERR_PARAM;
+    }
+
+    data[idx++] = (uint8_t)(epc_len / 2); // ENum is in Words (2 bytes)
     memcpy(&data[idx], epc, epc_len);
     idx += epc_len;
-    
+
     data[idx++] = mem_bank;
     data[idx++] = start_addr;
     data[idx++] = word_count;
-    
+
     // Password (0x00000000)
     memset(&data[idx], 0, 4);
     idx += 4;
-    
+
     uint8_t resp[RFID_FRAME_MAX_LEN];
-    int ret = send_command(0xFF, 0x02, data, idx, resp, sizeof(resp));
+    int ret = send_command(frame_address(), 0x02, data, (size_t)idx, resp, sizeof(resp));
     if (ret < 0) return ret;
     
     if (resp[3] != 0x00) {

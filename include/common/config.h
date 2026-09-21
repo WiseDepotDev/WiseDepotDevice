@@ -45,7 +45,9 @@ typedef struct {
     // RFID 配置
     char *rfid_serial_port; /**< RFID 串口设备 */
     int rfid_baudrate;      /**< RFID 波特率 */
-    int rfid_power;         /**< RFID 功率 (dBm) */
+    int rfid_power;         /**< RFID 功率 (dBm)，初始化时下发（P4-12） */
+    int rfid_address;       /**< RFID 读头地址 0x00-0xFE；0xFF = 广播（P4-12） */
+    bool rfid_legacy_frames;/**< true = 沿用旧帧路径（P4-12 兼容开关） */
 
     // 请求签名（P4-04）
     char *signature_secret; /**< X-Signature 的 HMAC 密钥；仅来自环境变量/配置文件，源码内无默认值 */

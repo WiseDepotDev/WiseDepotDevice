@@ -35,6 +35,9 @@ extern void test_patrol_execute_cancelled_midway(void);
 extern void test_patrol_execute_cancelled_on_last_action(void);
 extern void test_patrol_execute_completes_normally(void);
 extern void test_patrol_new_task_is_not_cancelled(void);
+extern void test_rfid_build_frame_matches_manual_layout(void);
+extern void test_rfid_build_frame_rejects_bad_input(void);
+extern void test_rfid_config_env_overrides(void);
 extern void test_wd_error_values_are_non_positive(void);
 extern void test_wd_error_codes_are_distinct(void);
 extern void test_wd_error_str_is_stable(void);
@@ -91,6 +94,11 @@ int main(void) {
     RUN_TEST(test_patrol_execute_cancelled_on_last_action);
     RUN_TEST(test_patrol_execute_completes_normally);
     RUN_TEST(test_patrol_new_task_is_not_cancelled);
+
+    // RFID 组帧与读头参数（P4-12）
+    RUN_TEST(test_rfid_build_frame_matches_manual_layout);
+    RUN_TEST(test_rfid_build_frame_rejects_bad_input);
+    RUN_TEST(test_rfid_config_env_overrides);
 
     // 统一错误码契约（P4-11 / STD-CODE-06）
     RUN_TEST(test_wd_error_values_are_non_positive);

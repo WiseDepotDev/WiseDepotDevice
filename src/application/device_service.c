@@ -91,6 +91,9 @@ wd_error_t device_service_init(void) {
             strncpy(rfid_cfg.serial_port, "/dev/ttyUSB0", sizeof(rfid_cfg.serial_port) - 1);
         }
         rfid_cfg.baudrate = cfg->rfid_baudrate > 0 ? cfg->rfid_baudrate : 57600;
+        rfid_cfg.power_dbm = cfg->rfid_power;
+        rfid_cfg.address = cfg->rfid_address;
+        rfid_cfg.legacy_frames = cfg->rfid_legacy_frames;
         rfid_cfg.server_url = cfg->server_url;
         
         // Topic for report

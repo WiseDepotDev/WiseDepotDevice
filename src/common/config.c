@@ -120,6 +120,8 @@ static int config_init_defaults(void) {
     g_config->rfid_serial_port = xstrdup_try("/dev/ttyUSB0");
     g_config->rfid_baudrate = 57600;
     g_config->rfid_power = 26;
+    g_config->rfid_address = 0xFF;         /* P4-12：默认广播，保持既有行为 */
+    g_config->rfid_legacy_frames = true;   /* P4-12：默认沿用旧帧路径 */
     g_config->task_poll_interval = DEFAULT_TASK_POLL_INTERVAL;
     g_config->network_timeout = DEFAULT_NETWORK_TIMEOUT;
     g_config->log_upload_strategy = xstrdup_try("daily");
@@ -216,6 +218,17 @@ wd_error_t config_load(const char *config_file) {
                         /* P4-04：请求签名密钥（单一来源之一；环境变量优先） */
                         if (g_config->signature_secret) xfree(g_config->signature_secret);
                         g_config->signature_secret = xstrdup_try(val);
+                    } else if (strcmp(key, "rfid_serial_port") == 0) {
+                        if (g_config->rfid_serial_port) xfree(g_config->rfid_serial_port);
+                        g_config->rfid_serial_port = xstrdup_try(val);
+                    } else if (strcmp(key, "rfid_baudrate") == 0) {
+                        g_config->rfid_baudrate = atoi(val);
+                    } else if (strcmp(key, "rfid_power") == 0) {
+                        g_config->rfid_power = atoi(val);
+                    } else if (strcmp(key, "rfid_address") == 0) {
+                        g_config->rfid_address = (int)strtol(val, NULL, 0); /* 允许 0xFF 写法 */
+                    } else if (strcmp(key, "rfid_legacy_frames") == 0) {
+                        g_config->rfid_legacy_frames = (atoi(val) != 0);
                     }
                 }
             }
@@ -257,6 +270,49 @@ wd_error_t config_load(const char *config_file) {
     }
     if (!g_config->signature_secret) {
         LOG_WARN("WISE_API_SIGNATURE_SECRET not set; signed API requests are unavailable");
+    }
+
+    /* P4-12：读头参数支持环境变量覆盖（现场调试不必改配置文件）；
+     * 非法值一律"忽略并告警"，不静默写入错误配置。 */
+    char *env_rfid_port = getenv("WISE_RFID_SERIAL_PORT");
+    if (env_rfid_port && env_rfid_port[0] != '\0') {
+        xfree(g_config->rfid_serial_port);
+        g_config->rfid_serial_port = xstrdup_try(env_rfid_port);
+    }
+
+    char *env_rfid_baud = getenv("WISE_RFID_BAUDRATE");
+    if (env_rfid_baud) {
+        int parsed = atoi(env_rfid_baud);
+        if (parsed > 0) {
+            g_config->rfid_baudrate = parsed;
+        } else {
+            LOG_WARN("Ignoring invalid WISE_RFID_BAUDRATE: %s", env_rfid_baud);
+        }
+    }
+
+    char *env_rfid_power = getenv("WISE_RFID_POWER");
+    if (env_rfid_power) {
+        int parsed = atoi(env_rfid_power);
+        if (parsed >= 0 && parsed <= 33) {
+            g_config->rfid_power = parsed;
+        } else {
+            LOG_WARN("Ignoring out-of-range WISE_RFID_POWER: %s (valid 0..33)", env_rfid_power);
+        }
+    }
+
+    char *env_rfid_addr = getenv("WISE_RFID_ADDRESS");
+    if (env_rfid_addr) {
+        long parsed = strtol(env_rfid_addr, NULL, 0);
+        if (parsed >= 0 && parsed <= 255) {
+            g_config->rfid_address = (int)parsed;
+        } else {
+            LOG_WARN("Ignoring out-of-range WISE_RFID_ADDRESS: %s (valid 0..255)", env_rfid_addr);
+        }
+    }
+
+    char *env_rfid_legacy = getenv("WISE_RFID_LEGACY_FRAMES");
+    if (env_rfid_legacy) {
+        g_config->rfid_legacy_frames = (atoi(env_rfid_legacy) != 0);
     }
 
     /* P4-06：文件解析与环境覆盖中的 xstrdup_try 失败会留下 NULL 字段，这里统一兜底 */
@@ -321,6 +377,16 @@ wd_error_t config_update_from_json(const char *json_str) {
     item = cJSON_GetObjectItem(root, "motor_trim_d");
     if (cJSON_IsNumber(item)) g_config->motor_trim_d = (float)item->valuedouble;
     
+    /* P4-12：读头参数可由服务端下发（与本地/环境变量同一优先级链：远端 < 本地 env） */
+    item = cJSON_GetObjectItem(root, "rfidBaudrate");
+    if (cJSON_IsNumber(item)) g_config->rfid_baudrate = item->valueint;
+
+    item = cJSON_GetObjectItem(root, "rfidPower");
+    if (cJSON_IsNumber(item)) g_config->rfid_power = item->valueint;
+
+    item = cJSON_GetObjectItem(root, "rfidAddress");
+    if (cJSON_IsNumber(item)) g_config->rfid_address = item->valueint;
+
     item = cJSON_GetObjectItem(root, "version");
     if (cJSON_IsString(item)) {
         if (g_config->version) xfree(g_config->version);
@@ -363,6 +429,9 @@ wd_error_t config_save_encrypted(void) {
     cJSON_AddNumberToObject(root, "motor_trim_b", g_config->motor_trim_b);
     cJSON_AddNumberToObject(root, "motor_trim_c", g_config->motor_trim_c);
     cJSON_AddNumberToObject(root, "motor_trim_d", g_config->motor_trim_d);
+    cJSON_AddNumberToObject(root, "rfidBaudrate", g_config->rfid_baudrate);
+    cJSON_AddNumberToObject(root, "rfidPower", g_config->rfid_power);
+    cJSON_AddNumberToObject(root, "rfidAddress", g_config->rfid_address);
     
     char *json_str = cJSON_PrintUnformatted(root);
     if (!json_str) {

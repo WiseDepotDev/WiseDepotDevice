@@ -39,6 +39,10 @@ wd_error_t rfid_service_init(const rfid_service_config_t *config) {
     driver_config.baudrate = config->baudrate;
     driver_config.timeout_ms = 1000;
     driver_config.max_retries = 3;
+    /* P4-12：读头地址/功率/旧帧开关由配置注入（domain/application 不直接读配置全局量） */
+    driver_config.address = config->address;
+    driver_config.power_dbm = config->power_dbm;
+    driver_config.legacy_frames = config->legacy_frames;
     
     int init_rc = rfid_init(&driver_config);
     if (init_rc != 0) {
