@@ -16,6 +16,9 @@ dependency-reduced-pom.xml
 # ===== 运行时文件 =====
 *.log
 *.pid
+# 设备本地持久化（注册令牌/配置落盘，P4-15 联调时产生）
+wise-device.dat
+*.dat
 
 # ===== IDE / 系统 =====
 .idea/
