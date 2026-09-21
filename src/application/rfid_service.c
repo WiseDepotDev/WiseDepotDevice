@@ -8,6 +8,7 @@
 #include "common/crypto.h"
 #include "infrastructure/http_client.h"
 #include "infrastructure/mqtt_client.h"
+#include "common/wd_error.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,7 +22,7 @@ static bool is_busy = false;
 static pthread_mutex_t service_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int rfid_service_init(const rfid_service_config_t *config) {
-    if (!config) return -1;
+    if (!config) return WD_ERR_PARAM;
     
     pthread_mutex_lock(&service_mutex);
     if (is_initialized) {
@@ -39,10 +40,11 @@ int rfid_service_init(const rfid_service_config_t *config) {
     driver_config.timeout_ms = 1000;
     driver_config.max_retries = 3;
     
-    if (rfid_init(&driver_config) != 0) {
-        LOG_ERROR("Failed to init RFID driver");
+    int init_rc = rfid_init(&driver_config);
+    if (init_rc != 0) {
+        LOG_ERROR("Failed to init RFID driver: %s", wd_error_str((wd_error_t)init_rc));
         pthread_mutex_unlock(&service_mutex);
-        return -1;
+        return (wd_error_t)init_rc;
     }
     
     // Set to Answer Mode
@@ -80,7 +82,7 @@ bool rfid_service_is_busy(void) {
 }
 
 static int fetch_expected_inventory(void) {
-    if (!service_config.server_url) return -1;
+    if (!service_config.server_url) return WD_ERR_STATE;
     
     char url[1024];
     
@@ -108,7 +110,7 @@ static int fetch_expected_inventory(void) {
     const char *signing_secret = config_signature_secret();
     if (signing_secret == NULL) {
         LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); expected inventory aborted");
-        return -1;
+        return WD_ERR_STATE;
     }
     hmac_sha256((const unsigned char *)signing_secret, strlen(signing_secret),
                 (const unsigned char *)string_to_sign, strlen(string_to_sign), hmac_result);
@@ -143,13 +145,13 @@ static int fetch_expected_inventory(void) {
     
     if (!resp) {
         LOG_ERROR("Failed to fetch expected inventory");
-        return -1;
+        return WD_ERR_CONNECT;
     }
     
     if (resp->status_code != 200 || !resp->body) {
         LOG_ERROR("Server returned error: %d", resp->status_code);
         http_response_free(resp);
-        return -1;
+        return WD_ERR_SERVER;
     }
     
     int ret = inventory_load_expected(resp->body);
@@ -195,16 +197,16 @@ static void upload_report(const inventory_report_t *report, const char *task_id)
 }
 
 int rfid_service_fetch_expected_inventory(void) {
-    if (!is_initialized) return -1;
+    if (!is_initialized) return WD_ERR_STATE;
     return fetch_expected_inventory();
 }
 
 int rfid_service_scan_only(rfid_tag_t *tags, int max_count) {
-    if (!tags || max_count <= 0) return -1;
+    if (!tags || max_count <= 0) return WD_ERR_PARAM;
     pthread_mutex_lock(&service_mutex);
     if (!is_initialized) {
         pthread_mutex_unlock(&service_mutex);
-        return -1;
+        return WD_ERR_PARAM;
     }
     int count = (int)rfid_inventory(tags, (size_t)max_count);
     pthread_mutex_unlock(&service_mutex);
@@ -220,7 +222,7 @@ int rfid_service_run_cycle(const char *task_id) {
     pthread_mutex_lock(&service_mutex);
     if (!is_initialized || is_busy) {
         pthread_mutex_unlock(&service_mutex);
-        return -1;
+        return WD_ERR_STATE;
     }
     is_busy = true;
     pthread_mutex_unlock(&service_mutex);
@@ -237,17 +239,17 @@ int rfid_service_run_cycle(const char *task_id) {
         pthread_mutex_lock(&service_mutex);
         is_busy = false;
         pthread_mutex_unlock(&service_mutex);
-        return -1;
+        return WD_ERR_NOMEM;
     }
     int count = rfid_inventory(tags, MAX_SCAN_TAGS);
     
     if (count < 0) {
-        LOG_ERROR("Inventory Scan Failed");
+        LOG_ERROR("Inventory Scan Failed: %s", wd_error_str((wd_error_t)count));
         xfree(tags);
         pthread_mutex_lock(&service_mutex);
         is_busy = false;
         pthread_mutex_unlock(&service_mutex);
-        return -1;
+        return (wd_error_t)count;
     }
     
     // Log only when tags are found, and only display the card numbers (EPC)

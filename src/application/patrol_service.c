@@ -21,6 +21,7 @@
 #include "infrastructure/http_client.h"
 #include "common/crypto.h"
 #include "common/envelope.h"
+#include "common/wd_error.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -205,17 +206,17 @@ static void *patrol_task_thread_func(void *arg) {
 int patrol_service_start_task(patrol_task_t *task) {
     if (!g_patrol_service.initialized) {
         LOG_ERROR("Patrol service not initialized");
-        return -1;
+        return WD_ERR_STATE;
     }
     
-    if (!task) return -1;
+    if (!task) return WD_ERR_PARAM;
     
     pthread_mutex_lock(&g_patrol_service.queue_mutex);
     
     if (g_patrol_service.shutting_down) {
         LOG_WARN("Patrol service is shutting down, rejecting task: %s", task->id);
         pthread_mutex_unlock(&g_patrol_service.queue_mutex);
-        return -1;
+        return WD_ERR_STATE;
     }
     
     // Check if current task is running
@@ -227,7 +228,7 @@ int patrol_service_start_task(patrol_task_t *task) {
             LOG_ERROR("Failed to create patrol task thread");
             g_patrol_service.current_task = NULL;
             pthread_mutex_unlock(&g_patrol_service.queue_mutex);
-            return -1; /* 所有权仍属调用方 */
+            return WD_ERR_BUSY; /* 所有权仍属调用方 */
         }
         g_patrol_service.worker_running = true;
         pthread_detach(thread_id);
@@ -236,7 +237,7 @@ int patrol_service_start_task(patrol_task_t *task) {
         if (g_patrol_service.queue_count >= MAX_TASK_QUEUE_SIZE) {
             LOG_WARN("scheduler_task_t queue is full, rejecting task: %s", task->id);
             pthread_mutex_unlock(&g_patrol_service.queue_mutex);
-            return -1;
+            return WD_ERR_FULL;
         }
         
         g_patrol_service.task_queue[g_patrol_service.queue_tail] = task;
@@ -288,12 +289,12 @@ static void check_and_start_next_task(void) {
 int patrol_service_execute_task(void) {
     if (!g_patrol_service.initialized) {
         LOG_ERROR("Patrol service not initialized");
-        return -1;
+        return WD_ERR_STATE;
     }
     
     if (g_patrol_service.current_task) {
         LOG_WARN("Another task is already running");
-        return -1;
+        return WD_ERR_BUSY;
     }
     
     patrol_task_t *task = patrol_service_fetch_task();

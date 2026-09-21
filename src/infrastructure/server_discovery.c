@@ -10,6 +10,7 @@
 #include "common/config.h"
 #include "common/logger.h"
 #include "common/xmalloc.h"
+#include "common/wd_error.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,7 +34,7 @@ int server_discovery_init(void) {
     // 创建 UDP socket
     if ((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         LOG_ERROR("Failed to create socket: %s", strerror(errno));
-        return -1;
+        return WD_ERR_IO;
     }
 
     // 设置广播选项
@@ -41,7 +42,7 @@ int server_discovery_init(void) {
     if (setsockopt(sock_fd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0) {
         LOG_ERROR("Failed to set SO_BROADCAST: %s", strerror(errno));
         close(sock_fd);
-        return -1;
+        return WD_ERR_IO;
     }
 
     // 设置接收超时
@@ -51,7 +52,7 @@ int server_discovery_init(void) {
     if (setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
         LOG_ERROR("Failed to set SO_RCVTIMEO: %s", strerror(errno));
         close(sock_fd);
-        return -1;
+        return WD_ERR_IO;
     }
 
     // 设置广播地址
@@ -83,13 +84,13 @@ static int verify_and_save_server(const char *response_json) {
     cJSON *root = cJSON_Parse(response_json);
     if (!root) {
         LOG_WARN("Failed to parse discovery response: %s", response_json);
-        return -1;
+        return WD_ERR_PARAM;
     }
 
     cJSON *type = cJSON_GetObjectItem(root, "type");
     if (!cJSON_IsString(type) || strcmp(type->valuestring, "DISCOVERY_RESPONSE") != 0) {
         cJSON_Delete(root);
-        return -1; // Not a discovery response
+        return WD_ERR_PROTOCOL; // Not a discovery response
     }
 
     cJSON *ip = cJSON_GetObjectItem(root, "serverIp");
@@ -109,12 +110,13 @@ static int verify_and_save_server(const char *response_json) {
     }
 
     cJSON_Delete(root);
-    return -1;
+    return WD_ERR_PARAM;
 }
 
 int server_discovery_start(int timeout_sec) {
     if (sock_fd < 0) {
-        if (server_discovery_init() < 0) return -1;
+        int init_rc = server_discovery_init();
+        if (init_rc < 0) return (wd_error_t)init_rc;
     }
 
     time_t start_time = time(NULL);
@@ -160,7 +162,7 @@ int server_discovery_start(int timeout_sec) {
         return 0;
     }
 
-    return -1;
+    return WD_ERR_NOT_FOUND;
 }
 
 void server_discovery_stop(void) {

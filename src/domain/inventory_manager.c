@@ -69,7 +69,7 @@ int inventory_load_expected(const char *json_str) {
                  envelope_code(&envelope) != NULL ? envelope_code(&envelope) : "(null)",
                  envelope_error_code(&envelope) != NULL ? envelope_error_code(&envelope) : "(null)");
         envelope_free(&envelope);
-        return WD_ERR_GENERAL;
+        return WD_ERR_SERVER;
     }
 
     rows = envelope_data_rows(&envelope);

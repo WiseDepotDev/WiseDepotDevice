@@ -13,6 +13,7 @@
 #include "infrastructure/http_client.h"
 #include "common/crypto.h"
 #include "common/xmalloc.h"
+#include "common/wd_error.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -34,7 +35,7 @@ int config_service_fetch_remote(void) {
     const wd_config_t *cfg = config_get();
     if (!cfg || !cfg->server_url || !cfg->device_id) {
         LOG_WARN("Skip remote config: server_url or device_id missing");
-        return -1;
+        return WD_ERR_STATE;
     }
 
     /* URL 形如：SERVER_URL + api_base_url + /config?deviceId=...&version=... */
@@ -46,7 +47,7 @@ int config_service_fetch_remote(void) {
     http_response_t *res = http_get(url, NULL, 0);
     if (!res) {
         LOG_WARN("Failed to connect to config server");
-        return -1;
+        return WD_ERR_CONNECT;
     }
 
     int rc = -1;

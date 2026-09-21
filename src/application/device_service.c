@@ -25,6 +25,7 @@
 #include "infrastructure/server_discovery.h"
 #include "infrastructure/mqtt_client.h"
 #include "common/crypto.h"
+#include "common/wd_error.h"
 #include <cJSON.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,17 +53,17 @@ int device_service_init(void) {
     LOG_INFO("Device service initialized (v%s)", DEVICE_VERSION);
     if (scheduler_init() != 0) {
         LOG_ERROR("Failed to init scheduler");
-        return -1;
+        return WD_ERR_GENERAL;
     }
     
     if (config_service_init() != 0) {
         LOG_ERROR("Failed to init config service");
-        return -1;
+        return WD_ERR_GENERAL;
     }
 
     if (log_service_init() != 0) {
         LOG_ERROR("Failed to init log service");
-        return -1;
+        return WD_ERR_GENERAL;
     }
     
     /* P4-09：统一走 application 层的电机服务初始化（由它把配置注入 domain） */

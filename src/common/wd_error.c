@@ -23,6 +23,8 @@ const char *wd_error_str(wd_error_t err) {
         case WD_ERR_CONNECT:     return "WD_ERR_CONNECT";
         case WD_ERR_CANCELED:    return "WD_ERR_CANCELED";
         case WD_ERR_ACTION:      return "WD_ERR_ACTION";
+        case WD_ERR_SERVER:      return "WD_ERR_SERVER";
+        case WD_ERR_AUTH:        return "WD_ERR_AUTH";
         case WD_ERR_GENERAL:     return "WD_ERR_GENERAL";
         default:                 return "WD_ERR_UNKNOWN";
     }

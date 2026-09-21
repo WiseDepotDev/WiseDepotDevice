@@ -11,6 +11,7 @@
 #include "common/logger.h"
 #include "common/xmalloc.h"
 #include "infrastructure/http_client.h"
+#include "common/wd_error.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -169,12 +170,12 @@ patrol_task_t *patrol_service_fetch_task(void) {
  */
 int patrol_service_report_result(const patrol_task_t *task) {
     if (!task) {
-        return -1;
+        return WD_ERR_PARAM;
     }
     
     if (!g_patrol_service.initialized) {
         LOG_ERROR("Patrol service not initialized");
-        return -1;
+        return WD_ERR_STATE;
     }
     
     const wd_config_t *cfg = config_get();
@@ -228,7 +229,7 @@ int patrol_service_report_result(const patrol_task_t *task) {
         const char *signing_secret = config_signature_secret();
         if (signing_secret == NULL) {
             LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); result report aborted");
-            return -1;
+            return WD_ERR_STATE;
         }
         hmac_sha256(signing_secret, strlen(signing_secret),
                     string_to_sign, strlen(string_to_sign), hmac_result);
@@ -252,7 +253,7 @@ int patrol_service_report_result(const patrol_task_t *task) {
     
     if (!res) {
         LOG_ERROR("Failed to update task status (network error)");
-        return -1;
+        return WD_ERR_CONNECT;
     }
     
     if (res->status_code == 401 || res->status_code == 403) {
@@ -260,7 +261,7 @@ int patrol_service_report_result(const patrol_task_t *task) {
         patrol_service_clear_token();
         device_trigger_reauth();
         http_response_free(res);
-        return -1;
+        return WD_ERR_AUTH;
     }
     
     bool success = (res->status_code >= 200 && res->status_code < 300);
@@ -272,6 +273,6 @@ int patrol_service_report_result(const patrol_task_t *task) {
     } else {
         LOG_ERROR("Failed to report patrol task result (Status: %d, StatusStr: %s)", res->status_code, status_str);
         http_response_free(res);
-        return -1;
+        return WD_ERR_SERVER;
     }
 }

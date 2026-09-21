@@ -1,5 +1,6 @@
 #include "infrastructure/rfid_driver.h"
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,7 +38,7 @@ static uint16_t calculate_crc16(const uint8_t *data, size_t len) {
 
 // Low-level serial read with timeout
 static int serial_read(uint8_t *buffer, size_t len, int timeout_ms) {
-    if (serial_fd < 0) return -1;
+    if (serial_fd < 0) return WD_ERR_STATE;
 
     size_t total_read = 0;
     struct timespec start, now;
@@ -48,7 +49,7 @@ static int serial_read(uint8_t *buffer, size_t len, int timeout_ms) {
         if (n > 0) {
             total_read += n;
         } else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-            return -1; // Error
+            return WD_ERR_IO; // Error
         }
 
         clock_gettime(CLOCK_MONOTONIC, &now);
@@ -65,7 +66,7 @@ static int serial_read(uint8_t *buffer, size_t len, int timeout_ms) {
 
 // Send command and receive response
 static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t data_len, uint8_t *response, size_t max_resp_len) {
-    if (serial_fd < 0) return -1;
+    if (serial_fd < 0) return WD_ERR_STATE;
 
     uint8_t frame[RFID_FRAME_MAX_LEN];
     size_t frame_len = 0;
@@ -74,7 +75,7 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
     // Len(1) | Adr(1) | Cmd(1) | Data(...) | CRC_LSB | CRC_MSB
     // Len = 1 (Adr) + 1 (Cmd) + data_len + 2 (CRC) = 4 + data_len
     
-    if (4 + data_len > RFID_FRAME_MAX_LEN) return -1;
+    if (4 + data_len > RFID_FRAME_MAX_LEN) return WD_ERR_PARAM;
 
     frame[0] = (uint8_t)(4 + data_len); // Len doesn't include itself
     frame[1] = addr;
@@ -96,7 +97,7 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
     // Write
     if (write(serial_fd, frame, frame_len) != (ssize_t)frame_len) {
         LOG_ERROR("Failed to write to serial port");
-        return -1;
+        return WD_ERR_IO;
     }
 
     // Read Response
@@ -105,7 +106,7 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
     uint8_t resp_len_byte;
     if (serial_read(&resp_len_byte, 1, current_config.timeout_ms) != 1) {
         LOG_WARN("Timeout waiting for response length");
-        return -2; // Timeout
+        return WD_ERR_TIMEOUT; // Timeout
     }
 
     /* 长度合法性（P4-01）。三条理由说明旧判断 `resp_len_byte > max_resp_len` 既无用也不足：
@@ -118,7 +119,7 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
     if (resp_len_byte < MIN_RESP_PAYLOAD_LEN || (size_t)resp_len_byte + 1 > max_resp_len) {
         LOG_ERROR("Invalid response length: %u (buffer capacity: %zu)",
                   (unsigned)resp_len_byte, max_resp_len);
-        return -3;
+        return WD_ERR_PROTOCOL;
     }
     /* 边界不变式：此后 response[0..resp_len_byte] 全部合法 */
     assert((size_t)resp_len_byte + 1 <= max_resp_len);
@@ -128,7 +129,7 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
     int n = serial_read(&response[1], resp_len_byte, current_config.timeout_ms);
     if (n != resp_len_byte) {
         LOG_WARN("Incomplete response");
-        return -2;
+        return WD_ERR_TIMEOUT;
     }
     assert(n <= (int)max_resp_len - 1); /* 载荷写入的是 response[1..resp_len_byte] */
 
@@ -153,7 +154,7 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
         uint16_t full_crc = calculate_crc16(response, resp_len_byte + 1);
         if (full_crc != 0) {
              LOG_ERROR("CRC mismatch: calc=0x%04X, recv=0x%04X", calc_crc, embedded_crc);
-             return -4;
+             return WD_ERR_CRC;
         }
     }
 
@@ -161,13 +162,13 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
 }
 
 int rfid_init(const rfid_config_t *config) {
-    if (!config) return -1;
+    if (!config) return WD_ERR_PARAM;
     current_config = *config;
 
     serial_fd = open(config->serial_port, O_RDWR | O_NOCTTY | O_SYNC);
     if (serial_fd < 0) {
         LOG_ERROR("Error opening %s: %s", config->serial_port, strerror(errno));
-        return -1;
+        return WD_ERR_IO;
     }
 
     struct termios tty;
@@ -175,7 +176,7 @@ int rfid_init(const rfid_config_t *config) {
         LOG_ERROR("Error from tcgetattr: %s", strerror(errno));
         close(serial_fd);
         serial_fd = -1;
-        return -1;
+        return WD_ERR_IO;
     }
 
     cfsetospeed(&tty, B57600); // Default speed
@@ -207,7 +208,7 @@ int rfid_init(const rfid_config_t *config) {
         LOG_ERROR("Error from tcsetattr: %s", strerror(errno));
         close(serial_fd);
         serial_fd = -1;
-        return -1;
+        return WD_ERR_IO;
     }
 
     return 0;
@@ -240,7 +241,7 @@ int rfid_set_mode_response(void) {
     // Response: Len | Adr | reCmd | Status | ...
     if (resp[3] != 0x00) {
         LOG_ERROR("Set mode failed with status: 0x%02X", resp[3]);
-        return -1;
+        return WD_ERR_PROTOCOL;
     }
     return 0;
 }
@@ -263,7 +264,7 @@ int rfid_inventory(rfid_tag_t *tags, size_t max_tags) {
     if (status != 0x01 && status != 0x03 && status != 0x04) {
         // 0x01: Complete, 0x03: More data, 0x04: Memory full
         LOG_ERROR("Inventory failed status: 0x%02X", status);
-        return -1;
+        return WD_ERR_PROTOCOL;
     }
     
     // Parse tags
@@ -338,7 +339,7 @@ int rfid_read_data(const uint8_t *epc, uint8_t epc_len,
     
     if (resp[3] != 0x00) {
         LOG_ERROR("Read data failed status: 0x%02X", resp[3]);
-        return -1;
+        return WD_ERR_PROTOCOL;
     }
     
     // Success. Data starts at 4. Length is determined by packet length.

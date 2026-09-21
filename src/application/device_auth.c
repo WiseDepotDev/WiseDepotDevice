@@ -16,6 +16,7 @@
 #include "common/logger.h"
 #include "common/xmalloc.h"
 #include "infrastructure/http_client.h"
+#include "common/wd_error.h"
 #include <cJSON.h>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -138,7 +139,7 @@ int device_register(void) {
     const char *signing_secret = config_signature_secret();
     if (signing_secret == NULL) {
         LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); registration aborted");
-        return -1;
+        return WD_ERR_STATE;
     }
     hmac_sha256(signing_secret, strlen(signing_secret), string_to_sign, strlen(string_to_sign), hmac_result);
     
@@ -168,7 +169,7 @@ int device_register(void) {
     
     if (!res) {
         LOG_ERROR("Registration request failed (Network error)");
-        return -1;
+        return WD_ERR_CONNECT;
     }
     
     if (res->status_code >= 200 && res->status_code < 300) {
@@ -203,7 +204,7 @@ int device_register(void) {
     } else {
         LOG_ERROR("Registration failed (Status: %d, Body: %s)", res->status_code, res->body ? res->body : "");
         http_response_free(res);
-        return -1;
+        return WD_ERR_SERVER;
     }
 }
 
@@ -243,7 +244,7 @@ int device_refresh_token(void) {
     
     if (!g_refresh_token) {
         LOG_ERROR("No refresh token available");
-        return -1;
+        return WD_ERR_STATE;
     }
     
     char url[1024];
@@ -258,7 +259,7 @@ int device_refresh_token(void) {
     
     if (!res) {
         LOG_ERROR("Token refresh request failed (Network error)");
-        return -1;
+        return WD_ERR_CONNECT;
     }
     
     if (res->status_code >= 200 && res->status_code < 300) {
@@ -286,6 +287,6 @@ int device_refresh_token(void) {
     } else {
         LOG_ERROR("Token refresh failed (Status: %d, Body: %s)", res->status_code, res->body ? res->body : "");
         http_response_free(res);
-        return -1;
+        return WD_ERR_SERVER;
     }
 }

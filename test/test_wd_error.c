@@ -18,7 +18,7 @@ void test_wd_error_values_are_non_positive(void) {
         WD_ERR_PARAM, WD_ERR_TIMEOUT, WD_ERR_PROTOCOL, WD_ERR_CRC, WD_ERR_IO,
         WD_ERR_NOMEM, WD_ERR_STATE, WD_ERR_NOT_FOUND, WD_ERR_BUSY, WD_ERR_FULL,
         WD_ERR_UNSUPPORTED, WD_ERR_CRYPTO, WD_ERR_CONNECT, WD_ERR_CANCELED,
-        WD_ERR_ACTION, WD_ERR_GENERAL
+        WD_ERR_ACTION, WD_ERR_SERVER, WD_ERR_AUTH, WD_ERR_GENERAL
     };
     for (unsigned i = 0; i < sizeof(errors) / sizeof(errors[0]); i++) {
         TEST_ASSERT_TRUE(errors[i] < 0);
@@ -30,7 +30,7 @@ void test_wd_error_codes_are_distinct(void) {
         WD_OK, WD_ERR_PARAM, WD_ERR_TIMEOUT, WD_ERR_PROTOCOL, WD_ERR_CRC, WD_ERR_IO,
         WD_ERR_NOMEM, WD_ERR_STATE, WD_ERR_NOT_FOUND, WD_ERR_BUSY, WD_ERR_FULL,
         WD_ERR_UNSUPPORTED, WD_ERR_CRYPTO, WD_ERR_CONNECT, WD_ERR_CANCELED,
-        WD_ERR_ACTION, WD_ERR_GENERAL
+        WD_ERR_ACTION, WD_ERR_SERVER, WD_ERR_AUTH, WD_ERR_GENERAL
     };
     const unsigned n = sizeof(errors) / sizeof(errors[0]);
     for (unsigned i = 0; i < n; i++) {
@@ -46,6 +46,8 @@ void test_wd_error_str_is_stable(void) {
     TEST_ASSERT_EQUAL_STRING("WD_ERR_TIMEOUT", wd_error_str(WD_ERR_TIMEOUT));
     TEST_ASSERT_EQUAL_STRING("WD_ERR_CRC", wd_error_str(WD_ERR_CRC));
     TEST_ASSERT_EQUAL_STRING("WD_ERR_NOMEM", wd_error_str(WD_ERR_NOMEM));
+    TEST_ASSERT_EQUAL_STRING("WD_ERR_SERVER", wd_error_str(WD_ERR_SERVER));
+    TEST_ASSERT_EQUAL_STRING("WD_ERR_AUTH", wd_error_str(WD_ERR_AUTH));
     TEST_ASSERT_EQUAL_STRING("WD_ERR_GENERAL", wd_error_str(WD_ERR_GENERAL));
     TEST_ASSERT_EQUAL_STRING("WD_ERR_UNKNOWN", wd_error_str((wd_error_t)-999));
 }

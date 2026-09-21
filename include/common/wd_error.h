@@ -39,6 +39,8 @@ typedef enum {
     WD_ERR_CONNECT     =  -13, /**< 连接失败（服务发现 / MQTT / HTTP） */
     WD_ERR_CANCELED    =  -14, /**< 被取消（任务取消语义） */
     WD_ERR_ACTION      =  -15, /**< 动作执行失败（巡检动作回调/执行体） */
+    WD_ERR_SERVER      =  -16, /**< 服务端返回非成功响应（HTTP 非 2xx / 业务码失败） */
+    WD_ERR_AUTH        =  -17, /**< 认证或授权失败（Token 无效/过期/权限不足） */
     WD_ERR_GENERAL     = -100  /**< 未归类的通用失败；**禁止新增**，仅用于迁移与兜底 */
 } wd_error_t;
 

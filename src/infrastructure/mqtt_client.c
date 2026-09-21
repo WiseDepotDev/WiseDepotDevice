@@ -18,6 +18,7 @@
 
 #include "infrastructure/mqtt_client.h"
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <MQTTAsync.h>
 #include <pthread.h>
 #include <semaphore.h>
@@ -73,7 +74,7 @@ static int op_wait(int timeout_ms) {
         ts.tv_nsec -= 1000000000L;
     }
     if (sem_timedwait(&g_op_sem, &ts) != 0) {
-        return -1; /* 超时（回调未在期限内到达） */
+        return WD_ERR_TIMEOUT; /* 超时（回调未在期限内到达） */
     }
     return 0;
 }
@@ -228,7 +229,7 @@ static void remember_subscription(const char *topic, int qos) {
 int mqtt_client_init(const char *host, int port, const char *client_id, const char *username, const char *password) {
     if (!host || host[0] == '\0') {
         LOG_ERROR("MQTT host is not configured; set the MQTT_HOST environment variable");
-        return -1;
+        return WD_ERR_PARAM;
     }
 
     if (client != NULL) {
@@ -239,7 +240,7 @@ int mqtt_client_init(const char *host, int port, const char *client_id, const ch
     if (!g_op_sem_ready) {
         if (sem_init(&g_op_sem, 0, 0) != 0) {
             LOG_ERROR("Failed to init MQTT operation semaphore");
-            return -1;
+            return WD_ERR_NOMEM;
         }
         g_op_sem_ready = true;
     }
@@ -253,14 +254,14 @@ int mqtt_client_init(const char *host, int port, const char *client_id, const ch
     if (rc != MQTTASYNC_SUCCESS) {
         LOG_ERROR("Failed to create MQTT client, return code %d", rc);
         client = NULL;
-        return -1;
+        return WD_ERR_PARAM;
     }
 
     rc = MQTTAsync_setCallbacks(client, NULL, connection_lost_cb, message_arrived_cb, NULL);
     if (rc != MQTTASYNC_SUCCESS) {
         LOG_ERROR("Failed to set callbacks, return code %d", rc);
         MQTTAsync_destroy(&client);
-        return -1;
+        return WD_ERR_GENERAL;
     }
 
     /* 自动重连成功走的是专门的 connected 回调（不是 connect 的 onSuccess）——必须注册，
@@ -269,7 +270,7 @@ int mqtt_client_init(const char *host, int port, const char *client_id, const ch
     if (rc != MQTTASYNC_SUCCESS) {
         LOG_ERROR("Failed to set connected callback, return code %d", rc);
         MQTTAsync_destroy(&client);
-        return -1;
+        return WD_ERR_GENERAL;
     }
 
     conn_opts.keepAliveInterval = 20;
@@ -293,7 +294,7 @@ int mqtt_client_init(const char *host, int port, const char *client_id, const ch
         pthread_mutex_unlock(&op_mutex);
         LOG_ERROR("Failed to start MQTT connect, return code %d", rc);
         MQTTAsync_destroy(&client);
-        return -1;
+        return WD_ERR_CONNECT;
     }
     int waited = op_wait(CONNECT_TIMEOUT_MS);
     pthread_mutex_unlock(&op_mutex);
@@ -302,15 +303,15 @@ int mqtt_client_init(const char *host, int port, const char *client_id, const ch
         LOG_ERROR("MQTT connect did not complete within %d ms", CONNECT_TIMEOUT_MS);
         MQTTAsync_destroy(&client);
         client = NULL;
-        return -1;
+        return WD_ERR_TIMEOUT;
     }
 
     return 0;
 }
 
 int mqtt_client_subscribe(const char *topic, int qos) {
-    if (!topic || !client) return -1;
-    if (!is_connected_flag()) return -1;
+    if (!topic || !client) return WD_ERR_PARAM;
+    if (!is_connected_flag()) return WD_ERR_STATE;
 
     remember_subscription(topic, qos);
 
@@ -325,22 +326,22 @@ int mqtt_client_subscribe(const char *topic, int qos) {
     if (rc != MQTTASYNC_SUCCESS) {
         pthread_mutex_unlock(&op_mutex);
         LOG_ERROR("Failed to subscribe to %s, return code %d", topic, rc);
-        return -1;
+        return WD_ERR_GENERAL;
     }
     int waited = op_wait(OP_TIMEOUT_MS);
     pthread_mutex_unlock(&op_mutex);
 
     if (waited != 0) {
         LOG_ERROR("Subscribe to %s timed out", topic);
-        return -1;
+        return WD_ERR_TIMEOUT;
     }
     LOG_INFO("Subscribed to %s", topic);
     return 0;
 }
 
 int mqtt_client_publish(const char *topic, const char *payload, int qos, int retained) {
-    if (!topic || !payload || !client) return -1;
-    if (!is_connected_flag()) return -1;
+    if (!topic || !payload || !client) return WD_ERR_PARAM;
+    if (!is_connected_flag()) return WD_ERR_STATE;
 
     MQTTAsync_message msg = MQTTAsync_message_initializer;
     msg.payload = (void *)payload;
@@ -359,14 +360,14 @@ int mqtt_client_publish(const char *topic, const char *payload, int qos, int ret
     if (rc != MQTTASYNC_SUCCESS) {
         pthread_mutex_unlock(&op_mutex);
         LOG_ERROR("Failed to publish message, return code %d", rc);
-        return -1;
+        return WD_ERR_GENERAL;
     }
     int waited = op_wait(OP_TIMEOUT_MS);
     pthread_mutex_unlock(&op_mutex);
 
     if (waited != 0) {
         LOG_ERROR("Publish to %s timed out", topic);
-        return -1;
+        return WD_ERR_TIMEOUT;
     }
     return 0;
 }
