@@ -46,8 +46,8 @@ patrol_service_state_t g_patrol_service = {.worker_done = PTHREAD_COND_INITIALIZ
 /**
  * 获取默认巡检服务配置
  */
-PatrolServiceConfig patrol_service_get_default_config(void) {
-    PatrolServiceConfig config = {
+patrol_service_config_t patrol_service_get_default_config(void) {
+    patrol_service_config_t config = {
         .task_poll_interval = 10,   /* 10秒轮询一次 */
         .task_timeout = 300,        /* 5分钟超时 */
         .auto_report_status = true  /* 自动上报状态 */
@@ -58,14 +58,14 @@ PatrolServiceConfig patrol_service_get_default_config(void) {
 /**
  * 初始化巡检服务
  */
-int patrol_service_init(const PatrolServiceConfig *config) {
+int patrol_service_init(const patrol_service_config_t *config) {
     if (g_patrol_service.initialized) {
         LOG_WARN("Patrol service already initialized");
         return 0;
     }
     
     if (config) {
-        memcpy(&g_patrol_service.config, config, sizeof(PatrolServiceConfig));
+        memcpy(&g_patrol_service.config, config, sizeof(patrol_service_config_t));
     } else {
         g_patrol_service.config = patrol_service_get_default_config();
     }
@@ -124,7 +124,7 @@ void patrol_service_clear_token(void) {
  * 流程：1) 获取仓库预期库存 2) 执行动作（移动/扫描时仅累积 RFID）3) 巡检结束后与预期比对并上传报告 4) 上报任务完成
  */
 static void *patrol_task_thread_func(void *arg) {
-    PatrolTask *task = (PatrolTask *)arg;
+    patrol_task_t *task = (patrol_task_t *)arg;
     if (!task) return NULL;
 
     LOG_INFO("Patrol task execution thread started: %s", task->id);
@@ -149,7 +149,7 @@ static void *patrol_task_thread_func(void *arg) {
     
     // 3. 上报开始执行 (Status: IN_PROGRESS)
     if (g_patrol_service.config.auto_report_status) {
-        PatrolTaskStatus original_status = task->status;
+        patrol_task_status_t original_status = task->status;
         task->status = PATROL_TASK_STATUS_RUNNING;
         patrol_service_report_result(task);
         task->status = original_status;
@@ -202,7 +202,7 @@ static void *patrol_task_thread_func(void *arg) {
  * - 返回 0：任务所有权**移交给服务**（服务负责执行后释放，或在 cleanup 时释放队列中的任务）；
  * - 返回 -1：服务**不接管**，调用方仍需自行释放 task（避免"失败后任务丢失/泄漏"）。
  */
-int patrol_service_start_task(PatrolTask *task) {
+int patrol_service_start_task(patrol_task_t *task) {
     if (!g_patrol_service.initialized) {
         LOG_ERROR("Patrol service not initialized");
         return -1;
@@ -234,7 +234,7 @@ int patrol_service_start_task(PatrolTask *task) {
     } else {
         // Add to queue
         if (g_patrol_service.queue_count >= MAX_TASK_QUEUE_SIZE) {
-            LOG_WARN("Task queue is full, rejecting task: %s", task->id);
+            LOG_WARN("scheduler_task_t queue is full, rejecting task: %s", task->id);
             pthread_mutex_unlock(&g_patrol_service.queue_mutex);
             return -1;
         }
@@ -242,7 +242,7 @@ int patrol_service_start_task(PatrolTask *task) {
         g_patrol_service.task_queue[g_patrol_service.queue_tail] = task;
         g_patrol_service.queue_tail = (g_patrol_service.queue_tail + 1) % MAX_TASK_QUEUE_SIZE;
         g_patrol_service.queue_count++;
-        LOG_INFO("Task queued: %s (Queue size: %d)", task->id, g_patrol_service.queue_count);
+        LOG_INFO("scheduler_task_t queued: %s (Queue size: %d)", task->id, g_patrol_service.queue_count);
     }
     
     pthread_mutex_unlock(&g_patrol_service.queue_mutex);
@@ -258,7 +258,7 @@ static void check_and_start_next_task(void) {
     }
     
     if (g_patrol_service.current_task == NULL && g_patrol_service.queue_count > 0) {
-        PatrolTask *next_task = g_patrol_service.task_queue[g_patrol_service.queue_head];
+        patrol_task_t *next_task = g_patrol_service.task_queue[g_patrol_service.queue_head];
         // Move head pointer
         g_patrol_service.queue_head = (g_patrol_service.queue_head + 1) % MAX_TASK_QUEUE_SIZE;
         g_patrol_service.queue_count--;
@@ -296,7 +296,7 @@ int patrol_service_execute_task(void) {
         return -1;
     }
     
-    PatrolTask *task = patrol_service_fetch_task();
+    patrol_task_t *task = patrol_service_fetch_task();
     if (!task) {
         return 0;
     }
@@ -343,7 +343,7 @@ void patrol_service_cleanup(void) {
     
     pthread_mutex_lock(&g_patrol_service.queue_mutex);
     g_patrol_service.shutting_down = true;
-    PatrolTask *running = g_patrol_service.current_task;
+    patrol_task_t *running = g_patrol_service.current_task;
     pthread_mutex_unlock(&g_patrol_service.queue_mutex);
     
     if (running) {
@@ -367,7 +367,7 @@ void patrol_service_cleanup(void) {
     /* 释放队列中未执行的任务 */
     pthread_mutex_lock(&g_patrol_service.queue_mutex);
     while (g_patrol_service.queue_count > 0) {
-        PatrolTask *queued = g_patrol_service.task_queue[g_patrol_service.queue_head];
+        patrol_task_t *queued = g_patrol_service.task_queue[g_patrol_service.queue_head];
         g_patrol_service.task_queue[g_patrol_service.queue_head] = NULL;
         g_patrol_service.queue_head = (g_patrol_service.queue_head + 1) % MAX_TASK_QUEUE_SIZE;
         g_patrol_service.queue_count--;
@@ -393,6 +393,6 @@ bool patrol_service_is_busy(void) {
 /**
  * 获取当前执行的任务
  */
-const PatrolTask *patrol_service_get_current_task(void) {
+const patrol_task_t *patrol_service_get_current_task(void) {
     return g_patrol_service.current_task;
 }

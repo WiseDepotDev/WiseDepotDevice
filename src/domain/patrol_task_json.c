@@ -67,7 +67,7 @@ static int extract_json_int(const char *json, const char *key, int default_val) 
 /**
  * 从JSON字符串解析巡检任务
  */
-PatrolTask *patrol_task_from_json(const char *json) {
+patrol_task_t *patrol_task_from_json(const char *json) {
     if (!json) return NULL;
     
     char *id = extract_json_string(json, "taskId");
@@ -83,7 +83,7 @@ PatrolTask *patrol_task_from_json(const char *json) {
         }
     }
     
-    PatrolTask *task = patrol_task_create(id ? id : "unknown", name ? name : "unnamed");
+    patrol_task_t *task = patrol_task_create(id ? id : "unknown", name ? name : "unnamed");
     
     if (id) xfree(id);
     if (name) xfree(name);
@@ -92,7 +92,7 @@ PatrolTask *patrol_task_from_json(const char *json) {
     if (!actions_str) {
         char *task_type = extract_json_string(json, "taskType");
         if (task_type) {
-            PatrolAction default_action = {
+            patrol_action_t default_action = {
                 .type = PATROL_ACTION_MOVE_FORWARD,
                 .speed = 50,
                 .duration_ms = 5000
@@ -121,7 +121,7 @@ PatrolTask *patrol_task_from_json(const char *json) {
         strncpy(action_str, action_start, action_len);
         action_str[action_len] = '\0';
         
-        PatrolAction action = {0};
+        patrol_action_t action = {0};
         
         char *type_str = extract_json_string(action_str, "type");
         if (type_str) {
@@ -147,7 +147,7 @@ PatrolTask *patrol_task_from_json(const char *json) {
 /**
  * 将巡检任务转换为JSON字符串
  */
-char *patrol_task_to_json(const PatrolTask *task) {
+char *patrol_task_to_json(const patrol_task_t *task) {
     if (!task) return NULL;
 
     size_t buf_size = 4096;
@@ -179,7 +179,7 @@ char *patrol_task_to_json(const PatrolTask *task) {
                           action_count);
 
     for (uint8_t i = 0; i < action_count; i++) {
-        const PatrolAction *action = &task->actions[i];
+        const patrol_action_t *action = &task->actions[i];
 
         if (i > 0) {
             used = wd_str_appendf(json, buf_size, used, ",");

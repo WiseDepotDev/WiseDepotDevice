@@ -19,7 +19,7 @@
 
 /* 全局调度器状态 */
 static struct {
-    Task *head;
+    scheduler_task_t *head;
     volatile int running;
     unsigned int default_resolution;
 } g_scheduler;
@@ -49,10 +49,10 @@ int scheduler_init(void) {
     return 0;
 }
 
-int scheduler_add_task(const char *name, TaskCallback callback, void *context, unsigned int interval_ms) {
+int scheduler_add_task(const char *name, scheduler_task_callback_t callback, void *context, unsigned int interval_ms) {
     if (!name || !callback || interval_ms == 0) return -1;
     
-    Task *new_task = (Task *)xcalloc_try(1, sizeof(Task));
+    scheduler_task_t *new_task = (scheduler_task_t *)xcalloc_try(1, sizeof(scheduler_task_t));
     if (!new_task) {
         LOG_ERROR("分配调度任务失败（内存不足）");
         return -1;
@@ -74,7 +74,7 @@ int scheduler_add_task(const char *name, TaskCallback callback, void *context, u
     new_task->next = g_scheduler.head;
     g_scheduler.head = new_task;
     
-    LOG_INFO("Task added: %s (interval: %dms)", name, interval_ms);
+    LOG_INFO("scheduler_task_t added: %s (interval: %dms)", name, interval_ms);
     return 0;
 }
 
@@ -100,7 +100,7 @@ void scheduler_run(unsigned int resolution_ms) {
             break; 
         }
         
-        Task *curr = g_scheduler.head;
+        scheduler_task_t *curr = g_scheduler.head;
         while (curr) {
             if (now >= curr->last_run + curr->interval_ms) {
                 // Time to run task
@@ -140,9 +140,9 @@ void scheduler_stop(void) {
 }
 
 void scheduler_destroy(void) {
-    Task *curr = g_scheduler.head;
+    scheduler_task_t *curr = g_scheduler.head;
     while (curr) {
-        Task *next = curr->next;
+        scheduler_task_t *next = curr->next;
         xfree(curr->name);
         xfree(curr);
         curr = next;

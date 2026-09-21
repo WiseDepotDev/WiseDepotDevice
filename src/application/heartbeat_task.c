@@ -55,7 +55,7 @@ void heartbeat_task_execute(void *ctx) {
     // 如果没有 Token，尝试使用签名 (如果服务器允许)
     // 但心跳任务本身不应直接调用 register，而是报告错误让主控决定
     
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     char url[1024];
     snprintf(url, sizeof(url), "%s/api/device/heartbeat", cfg->server_url);
     
@@ -70,7 +70,7 @@ void heartbeat_task_execute(void *ctx) {
              
     // LOG_DEBUG("Sending heartbeat: CPU=%.2f%%, Mem=%.2f%%", cpu, mem);
     
-    HttpResponse *res = NULL;
+    http_response_t *res = NULL;
     
     if (g_hb_token) {
         // Use Token

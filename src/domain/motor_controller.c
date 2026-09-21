@@ -25,8 +25,8 @@ motor_ctrl_state_t g_motor_ctrl = {0};
 /**
  * 获取默认电机控制器配置
  */
-MotorControllerConfig motor_controller_get_default_config(void) {
-    MotorControllerConfig config = {
+motor_controller_config_t motor_controller_get_default_config(void) {
+    motor_controller_config_t config = {
         .i2c_address = 0x40,
         .pwm_frequency = 50,
         .motors = {
@@ -81,14 +81,14 @@ MotorControllerConfig motor_controller_get_default_config(void) {
 /**
  * 初始化电机控制器
  */
-int motor_controller_init(const MotorControllerConfig *config) {
+int motor_controller_init(const motor_controller_config_t *config) {
     if (g_motor_ctrl.initialized) {
         LOG_WARN("Motor controller already initialized");
         return 0;
     }
     
     if (config) {
-        memcpy(&g_motor_ctrl.config, config, sizeof(MotorControllerConfig));
+        memcpy(&g_motor_ctrl.config, config, sizeof(motor_controller_config_t));
     } else {
         g_motor_ctrl.config = motor_controller_get_default_config();
     }
@@ -128,7 +128,7 @@ int motor_controller_init(const MotorControllerConfig *config) {
 
     /* 导出 GPIO 引脚 */
     for (int i = 0; i < MOTOR_COUNT; i++) {
-        MotorConfig *motor_cfg = &g_motor_ctrl.config.motors[i];
+        motor_config_t *motor_cfg = &g_motor_ctrl.config.motors[i];
         if (motor_cfg->use_gpio_for_dir) {
             // Pass address of gpio pin variable to update it if offset is applied
             if (gpio_export(&motor_cfg->gpio_in1) < 0 || 
@@ -164,7 +164,7 @@ void motor_controller_cleanup(void) {
     
     /* 释放 GPIO 资源 */
     for (int i = 0; i < MOTOR_COUNT; i++) {
-        MotorConfig *cfg = &g_motor_ctrl.config.motors[i];
+        motor_config_t *cfg = &g_motor_ctrl.config.motors[i];
         if (cfg->use_gpio_for_dir) {
             gpio_unexport(cfg->gpio_in1);
             gpio_unexport(cfg->gpio_in2);

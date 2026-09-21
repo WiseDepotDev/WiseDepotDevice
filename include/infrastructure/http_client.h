@@ -18,7 +18,7 @@ typedef struct {
     int status_code;    /**< HTTP 状态码 */
     char *body;         /**< 响应体 (需调用者释放) */
     size_t body_len;    /**< 响应体长度 */
-} HttpResponse;
+} http_response_t;
 
 /**
  * 发送 HTTP GET 请求 (支持自定义头)
@@ -28,7 +28,7 @@ typedef struct {
  * @param header_count 头数量
  * @return 响应结构体指针 (失败返回 NULL)
  */
-HttpResponse *http_get(const char *url, const char **headers, int header_count);
+http_response_t *http_get(const char *url, const char **headers, int header_count);
 
 /**
  * 发送 HTTP POST 请求 (支持自定义头)
@@ -39,7 +39,7 @@ HttpResponse *http_get(const char *url, const char **headers, int header_count);
  * @param header_count 头数量
  * @return 响应结构体指针 (失败返回 NULL)
  */
-HttpResponse *http_post(const char *url, const char *json_body, const char **headers, int header_count);
+http_response_t *http_post(const char *url, const char *json_body, const char **headers, int header_count);
 
 /**
  * 发送 HTTP PUT 请求 (支持自定义头)
@@ -50,14 +50,14 @@ HttpResponse *http_post(const char *url, const char *json_body, const char **hea
  * @param header_count 头数量
  * @return 响应结构体指针 (失败返回 NULL)
  */
-HttpResponse *http_put(const char *url, const char *json_body, const char **headers, int header_count);
+http_response_t *http_put(const char *url, const char *json_body, const char **headers, int header_count);
 
 /**
  * 释放 HTTP 响应资源
  *
  * @param res 响应结构体指针
  */
-void http_response_free(HttpResponse *res);
+void http_response_free(http_response_t *res);
 
 /**
  * 发送 HTTP POST 请求 (带重试与自定义头)
@@ -70,6 +70,6 @@ void http_response_free(HttpResponse *res);
  * @param max_retries 最大重试次数
  * @return 响应结构体指针 (失败返回 NULL)
  */
-HttpResponse *http_post_with_retry(const char *url, const char *json_body, const char **headers, int header_count, int timeout_ms, int max_retries);
+http_response_t *http_post_with_retry(const char *url, const char *json_body, const char **headers, int header_count, int timeout_ms, int max_retries);
 
 #endif // WISE_DEPOT_HTTP_CLIENT_H

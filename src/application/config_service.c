@@ -19,7 +19,7 @@
 #include <time.h>
 
 int config_service_init(void) {
-    LOG_INFO("Config service initialized");
+    LOG_INFO("wd_config_t service initialized");
     return 0;
 }
 
@@ -31,7 +31,7 @@ int config_service_init(void) {
  * 失败只告警，不影响启动（配置保持本地值）。
  */
 int config_service_fetch_remote(void) {
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     if (!cfg || !cfg->server_url || !cfg->device_id) {
         LOG_WARN("Skip remote config: server_url or device_id missing");
         return -1;
@@ -43,7 +43,7 @@ int config_service_fetch_remote(void) {
              cfg->server_url, cfg->api_base_url, cfg->device_id, cfg->version);
 
     LOG_INFO("Fetching config from: %s", url);
-    HttpResponse *res = http_get(url, NULL, 0);
+    http_response_t *res = http_get(url, NULL, 0);
     if (!res) {
         LOG_WARN("Failed to connect to config server");
         return -1;
@@ -51,7 +51,7 @@ int config_service_fetch_remote(void) {
 
     int rc = -1;
     if (res->status_code == 200 && res->body) {
-        LOG_INFO("Config fetched successfully");
+        LOG_INFO("wd_config_t fetched successfully");
         rc = config_update_from_json(res->body);
     } else {
         LOG_WARN("Failed to fetch config, status: %d", res->status_code);
@@ -62,7 +62,7 @@ int config_service_fetch_remote(void) {
 
 void config_fetch_task(void *ctx) {
     (void)ctx;
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     
     // Add signature headers
     char timestamp[20];
@@ -92,7 +92,7 @@ void config_fetch_task(void *ctx) {
     // 如果 Controller 是 @RequestMapping("/api/device")，且方法是 @GetMapping("/config")
     // 那么完整路径是 /api/device/config
     // 
-    // 但 Config.c 中默认 DEFAULT_API_BASE_URL 是 "/api/v1"
+    // 但 wd_config_t.c 中默认 DEFAULT_API_BASE_URL 是 "/api/v1"
     // 所以客户端请求的是 /api/v1/config
     // 这就是 404 的原因！
     // 
@@ -101,21 +101,21 @@ void config_fetch_task(void *ctx) {
     // 但看之前的注册请求 POST /api/device 是成功的。
     // 这意味着 /api/device 是存在的。
     // 
-    // 让我们假设 Config.c 中的默认值错了。
+    // 让我们假设 wd_config_t.c 中的默认值错了。
     // 我们应该将 DEFAULT_API_BASE_URL 修改为 "/api/device"
     
     // 但这里只能改代码。
-    // 实际上，Config.c 中写死的是 "/api/v1"。
-    // 我们需要在 Config.c 中修改默认值，或者在这里 override。
-    // 更好的做法是去修改 Config.c。
+    // 实际上，wd_config_t.c 中写死的是 "/api/v1"。
+    // 我们需要在 wd_config_t.c 中修改默认值，或者在这里 override。
+    // 更好的做法是去修改 wd_config_t.c。
     
-    // 暂时先在这里 hack 一下，或者让用户去改 Config.c?
-    // 不，我是 AI，我应该直接去改 Config.c。
+    // 暂时先在这里 hack 一下，或者让用户去改 wd_config_t.c?
+    // 不，我是 AI，我应该直接去改 wd_config_t.c。
     
-    // 既然已经在编辑这个文件，我先把这里的逻辑保持原样，然后去改 Config.c。
+    // 既然已经在编辑这个文件，我先把这里的逻辑保持原样，然后去改 wd_config_t.c。
     // 但为了确保这里的 uri_path 和 url 一致，我需要确保 cfg->api_base_url 是对的。
     // 
-    // 如果我不改 Config.c，只改这里，那么 cfg->api_base_url 还是 /api/v1。
+    // 如果我不改 wd_config_t.c，只改这里，那么 cfg->api_base_url 还是 /api/v1。
     // 
     // 让我们先不要提交这个 SearchReplace，而是去修改 src/common/config.c。
     // 
@@ -203,7 +203,7 @@ void config_fetch_task(void *ctx) {
     
     LOG_DEBUG("Fetching config from %s", url);
     
-    HttpResponse *res = http_get(url, headers, header_count);
+    http_response_t *res = http_get(url, headers, header_count);
     
     xfree(signature);
     if (!res) {
@@ -212,7 +212,7 @@ void config_fetch_task(void *ctx) {
     }
     
     if (res->status_code == 304) {
-        LOG_DEBUG("Config not modified");
+        LOG_DEBUG("wd_config_t not modified");
         http_response_free(res);
         return;
     }
@@ -224,12 +224,12 @@ void config_fetch_task(void *ctx) {
         
         LOG_INFO("Received new config version");
         if (config_update_from_json(res->body) == 0) {
-            LOG_INFO("Config updated successfully");
+            LOG_INFO("wd_config_t updated successfully");
         } else {
             LOG_ERROR("Failed to update config from response");
         }
     } else {
-        LOG_WARN("Config fetch failed: %d", res->status_code);
+        LOG_WARN("wd_config_t fetch failed: %d", res->status_code);
     }
     
     http_response_free(res);

@@ -17,7 +17,7 @@
 #include <ctype.h>
 
 /* 全局缓存 */
-static DeviceInfo *g_info = NULL;
+static device_info_t *g_info = NULL;
 
 /* 简单的字符串修剪函数 */
 static char *trim_quotes(char *s) {
@@ -83,10 +83,10 @@ static char *get_model_name(void) {
     return xstrdup_try("WiseDevice-Generic");
 }
 
-const DeviceInfo *device_info_get(void) {
+const device_info_t *device_info_get(void) {
     if (g_info) return g_info;
     
-    g_info = (DeviceInfo *)xcalloc_try(1, sizeof(DeviceInfo));
+    g_info = (device_info_t *)xcalloc_try(1, sizeof(device_info_t));
     if (!g_info) {
         LOG_ERROR("分配设备信息结构失败（内存不足）");
         return NULL;

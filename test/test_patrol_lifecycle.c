@@ -23,22 +23,22 @@ typedef struct {
     int return_handled;      /* 回调返回值（1 = 已处理，跳过默认执行） */
 } lifecycle_ctx_t;
 
-static int lifecycle_callback(const PatrolTask *task, uint8_t action_index, void *context) {
+static int lifecycle_callback(const patrol_task_t *task, uint8_t action_index, void *context) {
     lifecycle_ctx_t *ctx = (lifecycle_ctx_t *)context;
     ctx->visited[ctx->visited_count++] = action_index;
 
     if (action_index == ctx->cancel_at_index) {
         /* 模拟外部取消（回调拿到的是 const 指针，测试里显式去 const） */
-        patrol_task_cancel((PatrolTask *)task);
+        patrol_task_cancel((patrol_task_t *)task);
     }
     return ctx->return_handled;
 }
 
-static PatrolTask *make_task(const char *id, uint8_t action_count) {
-    PatrolTask *task = patrol_task_create(id, id);
+static patrol_task_t *make_task(const char *id, uint8_t action_count) {
+    patrol_task_t *task = patrol_task_create(id, id);
     assert(task != NULL);
     for (uint8_t i = 0; i < action_count; i++) {
-        PatrolAction action;
+        patrol_action_t action;
         memset(&action, 0, sizeof(action));
         action.type = PATROL_ACTION_MOVE_FORWARD;
         action.speed = 50;
@@ -50,8 +50,8 @@ static PatrolTask *make_task(const char *id, uint8_t action_count) {
 
 /** 取消标志是每任务独立的：取消 A 不得影响 B（旧实现是全局标志） */
 void test_patrol_cancel_is_per_task(void) {
-    PatrolTask *a = make_task("life-a", 2);
-    PatrolTask *b = make_task("life-b", 2);
+    patrol_task_t *a = make_task("life-a", 2);
+    patrol_task_t *b = make_task("life-b", 2);
 
     a->status = PATROL_TASK_STATUS_RUNNING;
     TEST_ASSERT_EQUAL(0, patrol_task_cancel(a));
@@ -69,7 +69,7 @@ void test_patrol_cancel_is_per_task(void) {
 
 /** 执行中途被取消：返回 -1、状态 CANCELLED、后续动作不再执行 */
 void test_patrol_execute_cancelled_midway(void) {
-    PatrolTask *task = make_task("life-cancel-mid", 3);
+    patrol_task_t *task = make_task("life-cancel-mid", 3);
     lifecycle_ctx_t ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.visited_count = 0;
@@ -89,7 +89,7 @@ void test_patrol_execute_cancelled_midway(void) {
 
 /** 末个动作期间被取消：不得被写成 COMPLETED（旧实现无条件覆盖状态） */
 void test_patrol_execute_cancelled_on_last_action(void) {
-    PatrolTask *task = make_task("life-cancel-last", 2);
+    patrol_task_t *task = make_task("life-cancel-last", 2);
     lifecycle_ctx_t ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.visited_count = 0;
@@ -107,7 +107,7 @@ void test_patrol_execute_cancelled_on_last_action(void) {
 
 /** 正常执行：返回 0 且状态 COMPLETED */
 void test_patrol_execute_completes_normally(void) {
-    PatrolTask *task = make_task("life-ok", 3);
+    patrol_task_t *task = make_task("life-ok", 3);
     lifecycle_ctx_t ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.visited_count = 0;
@@ -126,7 +126,7 @@ void test_patrol_execute_completes_normally(void) {
 
 /** 新建任务默认未取消（字段初始化契约） */
 void test_patrol_new_task_is_not_cancelled(void) {
-    PatrolTask *task = patrol_task_create("life-new", "life-new");
+    patrol_task_t *task = patrol_task_create("life-new", "life-new");
     TEST_ASSERT_NOT_NULL(task);
     TEST_ASSERT_FALSE(task->cancel_requested);
     TEST_ASSERT_EQUAL(PATROL_TASK_STATUS_PENDING, task->status);

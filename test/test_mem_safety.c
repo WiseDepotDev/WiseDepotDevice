@@ -73,11 +73,11 @@ void test_wd_str_appendf_never_overflows(void) {
 
 /** action_count 超过数组上限时应被夹取，不越界读 actions[] */
 void test_patrol_task_to_json_clamps_action_count(void) {
-    PatrolTask *task = patrol_task_create("task-1", "clamp-check");
+    patrol_task_t *task = patrol_task_create("task-1", "clamp-check");
     TEST_ASSERT_NOT_NULL(task);
 
     for (uint8_t i = 0; i < PATROL_TASK_MAX_ACTIONS; i++) {
-        PatrolAction action;
+        patrol_action_t action;
         memset(&action, 0, sizeof(action));
         action.type = PATROL_ACTION_MOVE_FORWARD;
         action.speed = 50;

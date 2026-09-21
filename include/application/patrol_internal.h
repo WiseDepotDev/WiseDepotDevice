@@ -35,10 +35,10 @@ typedef struct {
 
 /* ===== 服务状态（唯一定义在 patrol_service.c） ===== */
 typedef struct {
-    PatrolServiceConfig config;     /**< 服务配置 */
+    patrol_service_config_t config;     /**< 服务配置 */
     char *token;                    /**< 认证Token */
-    PatrolTask *current_task;       /**< 当前执行的任务（归执行线程所有，cleanup 不得释放） */
-    PatrolTask *task_queue[MAX_TASK_QUEUE_SIZE]; /**< 任务队列 */
+    patrol_task_t *current_task;       /**< 当前执行的任务（归执行线程所有，cleanup 不得释放） */
+    patrol_task_t *task_queue[MAX_TASK_QUEUE_SIZE]; /**< 任务队列 */
     int queue_head;                 /**< 队列头 */
     int queue_tail;                 /**< 队列尾 */
     int queue_count;                /**< 队列任务数量 */
@@ -53,6 +53,6 @@ extern patrol_service_state_t g_patrol_service;
 
 /* ===== 跨文件内部接口 ===== */
 /** 单个巡检动作的执行入口（原 static，拆分后跨文件可见；作为回调传给 patrol_task_execute） */
-int patrol_action_callback(const PatrolTask *task, uint8_t action_index, void *context);
+int patrol_action_callback(const patrol_task_t *task, uint8_t action_index, void *context);
 
 #endif // WISE_DEPOT_PATROL_INTERNAL_H

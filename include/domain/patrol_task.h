@@ -28,7 +28,7 @@
 typedef enum {
     PATROL_TASK_TYPE_PLAN = 0,    /**< 计划任务 */
     PATROL_TASK_TYPE_MANUAL = 1   /**< 手动任务 */
-} PatrolTaskType;
+} patrol_task_type_t;
 
 /**
  * 巡检动作类型枚举
@@ -50,18 +50,18 @@ typedef enum {
     PATROL_ACTION_SERVO,               /**< 舵机控制 */
     PATROL_ACTION_RFID_SCAN,           /**< RFID 盘点 */
     PATROL_ACTION_UNKNOWN              /**< 未知动作 */
-} PatrolActionType;
+} patrol_action_type_t;
 
 /**
  * 巡检动作结构体
  */
 typedef struct {
-    PatrolActionType type;     /**< 动作类型 */
+    patrol_action_type_t type;     /**< 动作类型 */
     uint8_t speed;             /**< 速度百分比 (0-100) */
     uint32_t duration_ms;      /**< 持续时间 (毫秒) */
     uint8_t servo_channel;     /**< 舵机通道 (仅SERVO类型有效) */
     uint8_t servo_angle;       /**< 舵机角度 (仅SERVO类型有效) */
-} PatrolAction;
+} patrol_action_t;
 
 /**
  * 巡检任务状态枚举
@@ -72,16 +72,16 @@ typedef enum {
     PATROL_TASK_STATUS_COMPLETED,  /**< 已完成 */
     PATROL_TASK_STATUS_FAILED,     /**< 失败 */
     PATROL_TASK_STATUS_CANCELLED   /**< 已取消 */
-} PatrolTaskStatus;
+} patrol_task_status_t;
 
 /**
  * 巡检点结构体 (用于任务执行)
  */
 typedef struct {
     float target_distance;     /**< 目标距离 (cm) */
-    PatrolActionType action;   /**< 动作类型 */
+    patrol_action_type_t action;   /**< 动作类型 */
     // 可根据需要添加 RFID 或其他检查点信息
-} PatrolPoint;
+} patrol_point_t;
 
 /**
  * 巡检任务结构体
@@ -93,16 +93,16 @@ typedef struct {
 typedef struct {
     char id[PATROL_TASK_ID_MAX_LEN];           /**< 任务ID */
     char name[PATROL_TASK_NAME_MAX_LEN];       /**< 任务名称 */
-    PatrolTaskType type;                       /**< 任务类型 */
-    PatrolAction actions[PATROL_TASK_MAX_ACTIONS]; /**< 动作列表 */
+    patrol_task_type_t type;                       /**< 任务类型 */
+    patrol_action_t actions[PATROL_TASK_MAX_ACTIONS]; /**< 动作列表 */
     uint8_t action_count;                      /**< 动作数量 */
-    PatrolPoint *points;                       /**< 巡检点列表 (动态分配) */
+    patrol_point_t *points;                       /**< 巡检点列表 (动态分配) */
     uint8_t point_count;                       /**< 巡检点数量 */
-    PatrolTaskStatus status;                   /**< 任务状态 */
+    patrol_task_status_t status;                   /**< 任务状态 */
     uint8_t current_action_index;              /**< 当前执行的动作索引 */
     volatile bool cancel_requested;            /**< 取消请求（P4-07：每任务独立，无全局） */
     char error_message[256];                   /**< 错误信息 */
-} PatrolTask;
+} patrol_task_t;
 
 /**
  * 巡检任务执行回调函数类型
@@ -112,7 +112,7 @@ typedef struct {
  * @param context 用户上下文
  * @return 0: 继续默认执行, 1: 已处理(跳过默认), -1: 错误(终止任务)
  */
-typedef int (*PatrolTaskCallback)(const PatrolTask *task, uint8_t action_index, void *context);
+typedef int (*patrol_task_callback_t)(const patrol_task_t *task, uint8_t action_index, void *context);
 
 /**
  * 创建空的巡检任务
@@ -121,7 +121,7 @@ typedef int (*PatrolTaskCallback)(const PatrolTask *task, uint8_t action_index, 
  * @param name 任务名称
  * @return 新创建的任务结构体 (需要调用者释放)
  */
-PatrolTask *patrol_task_create(const char *id, const char *name);
+patrol_task_t *patrol_task_create(const char *id, const char *name);
 
 /**
  * 向任务添加动作
@@ -130,7 +130,7 @@ PatrolTask *patrol_task_create(const char *id, const char *name);
  * @param action 动作结构体
  * @return 0 成功，-1 失败 (任务已满)
  */
-int patrol_task_add_action(PatrolTask *task, const PatrolAction *action);
+int patrol_task_add_action(patrol_task_t *task, const patrol_action_t *action);
 
 /**
  * 执行巡检任务
@@ -140,7 +140,7 @@ int patrol_task_add_action(PatrolTask *task, const PatrolAction *action);
  * @param context 回调上下文
  * @return 0 成功，-1 失败
  */
-int patrol_task_execute(PatrolTask *task, PatrolTaskCallback callback, void *context);
+int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, void *context);
 
 /**
  * 取消巡检任务
@@ -148,14 +148,14 @@ int patrol_task_execute(PatrolTask *task, PatrolTaskCallback callback, void *con
  * @param task 任务指针
  * @return 0 成功，-1 失败
  */
-int patrol_task_cancel(PatrolTask *task);
+int patrol_task_cancel(patrol_task_t *task);
 
 /**
  * 释放巡检任务资源
  * 
  * @param task 任务指针
  */
-void patrol_task_free(PatrolTask *task);
+void patrol_task_free(patrol_task_t *task);
 
 /**
  * 从JSON字符串解析巡检任务
@@ -163,7 +163,7 @@ void patrol_task_free(PatrolTask *task);
  * @param json JSON字符串
  * @return 解析后的任务结构体 (需要调用者释放)，失败返回NULL
  */
-PatrolTask *patrol_task_from_json(const char *json);
+patrol_task_t *patrol_task_from_json(const char *json);
 
 /**
  * 将巡检任务转换为JSON字符串
@@ -171,7 +171,7 @@ PatrolTask *patrol_task_from_json(const char *json);
  * @param task 任务指针
  * @return JSON字符串 (需要调用者释放)，失败返回NULL
  */
-char *patrol_task_to_json(const PatrolTask *task);
+char *patrol_task_to_json(const patrol_task_t *task);
 
 /**
  * 获取动作类型名称
@@ -179,7 +179,7 @@ char *patrol_task_to_json(const PatrolTask *task);
  * @param type 动作类型
  * @return 动作类型名称字符串
  */
-const char *patrol_action_type_to_string(PatrolActionType type);
+const char *patrol_action_type_to_string(patrol_action_type_t type);
 
 /**
  * 从字符串解析动作类型
@@ -187,7 +187,7 @@ const char *patrol_action_type_to_string(PatrolActionType type);
  * @param str 动作类型字符串
  * @return 动作类型枚举值
  */
-PatrolActionType patrol_action_type_from_string(const char *str);
+patrol_action_type_t patrol_action_type_from_string(const char *str);
 
 /**
  * 获取任务状态名称
@@ -195,6 +195,6 @@ PatrolActionType patrol_action_type_from_string(const char *str);
  * @param status 任务状态
  * @return 任务状态名称字符串
  */
-const char *patrol_task_status_to_string(PatrolTaskStatus status);
+const char *patrol_task_status_to_string(patrol_task_status_t status);
 
 #endif // WISE_DEPOT_PATROL_TASK_H

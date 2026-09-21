@@ -21,7 +21,7 @@ typedef struct {
     int task_poll_interval;     /**< 任务轮询间隔 (秒) */
     int task_timeout;           /**< 任务执行超时 (秒) */
     bool auto_report_status;    /**< 是否自动上报任务状态 */
-} PatrolServiceConfig;
+} patrol_service_config_t;
 
 /**
  * 初始化巡检服务
@@ -29,14 +29,14 @@ typedef struct {
  * @param config 服务配置 (NULL则使用默认配置)
  * @return 0 成功，-1 失败
  */
-int patrol_service_init(const PatrolServiceConfig *config);
+int patrol_service_init(const patrol_service_config_t *config);
 
 /**
  * 从服务端获取待执行的巡检任务
  * 
  * @return 任务结构体指针 (需要调用者释放)，无任务或失败返回NULL
  */
-PatrolTask *patrol_service_fetch_task(void);
+patrol_task_t *patrol_service_fetch_task(void);
 
 /**
  * 执行从服务端获取的巡检任务
@@ -51,7 +51,7 @@ int patrol_service_execute_task(void);
  * @param task 已完成的任务
  * @return 0 成功，-1 失败
  */
-int patrol_service_report_result(const PatrolTask *task);
+int patrol_service_report_result(const patrol_task_t *task);
 
 /**
  * 巡检服务主循环 (由调度器调用)
@@ -82,7 +82,7 @@ void patrol_service_cleanup(void);
  * 
  * @return 默认配置结构体
  */
-PatrolServiceConfig patrol_service_get_default_config(void);
+patrol_service_config_t patrol_service_get_default_config(void);
 
 /**
  * 检查是否有正在执行的任务
@@ -96,7 +96,7 @@ bool patrol_service_is_busy(void);
  * 
  * @return 当前任务指针 (只读)，无任务返回NULL
  */
-const PatrolTask *patrol_service_get_current_task(void);
+const patrol_task_t *patrol_service_get_current_task(void);
 
 /**
  * 启动指定的巡检任务
@@ -104,6 +104,6 @@ const PatrolTask *patrol_service_get_current_task(void);
  * @param task 任务指针 (该函数会接管 task 的内存所有权)
  * @return 0 成功，-1 失败 (任务正在执行或 task 为 NULL)
  */
-int patrol_service_start_task(PatrolTask *task);
+int patrol_service_start_task(patrol_task_t *task);
 
 #endif // WISE_DEPOT_PATROL_SERVICE_H

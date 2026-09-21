@@ -137,7 +137,7 @@ static int fetch_expected_inventory(void) {
     };
     
     snprintf(url, sizeof(url), "%s%s?%s", service_config.server_url, uri_path, query_string);
-    HttpResponse *resp = http_get(url, headers, 4);
+    http_response_t *resp = http_get(url, headers, 4);
     
     xfree(signature);
     
@@ -176,7 +176,7 @@ static void upload_report(const inventory_report_t *report, const char *task_id)
         snprintf(url, sizeof(url), "%s/api/inspection/report", service_config.server_url);
         const char *headers[] = {"Content-Type: application/json"};
         
-        HttpResponse *resp = http_post(url, json, headers, 1);
+        http_response_t *resp = http_post(url, json, headers, 1);
         if (resp) {
             if (resp->status_code == 200 || resp->status_code == 201) {
                 // LOG_INFO("Report uploaded via HTTP");

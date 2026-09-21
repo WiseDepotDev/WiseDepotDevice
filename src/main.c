@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
         LOG_WARN("Remote config unavailable, continue with local config");
     }
     
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     
     // 3. 重新初始化日志 (应用配置)
     // Close previous logger if needed or just re-init
@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
                 // Show current calculation based on config
                 if (cfg->move_speed_cm_s > 0.1f) {
                     float time_1m = config_calculate_move_duration(100.0f);
-                    LOG_INFO("Current Config Speed: %.2f cm/s", cfg->move_speed_cm_s);
+                    LOG_INFO("Current wd_config_t Speed: %.2f cm/s", cfg->move_speed_cm_s);
                     LOG_INFO("Time to walk 100cm: %.2f seconds", time_1m);
                 }
             }
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
         return EXIT_SUCCESS;
     }
     
-    LOG_INFO("Config loaded: Server=%s, DeviceId=%s, Heartbeat=%ds", 
+    LOG_INFO("wd_config_t loaded: Server=%s, DeviceId=%s, Heartbeat=%ds", 
              cfg->server_url, cfg->device_id, cfg->heartbeat_interval);
              
     // 4. 初始化应用服务

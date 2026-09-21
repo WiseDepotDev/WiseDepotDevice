@@ -12,7 +12,7 @@
 /**
  * 设置单个电机运行状态
  */
-int motor_run(MotorId motor, MotorDirection direction, uint8_t speed) {
+int motor_run(motor_id_t motor, motor_direction_t direction, uint8_t speed) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
         return -1;
@@ -58,7 +58,7 @@ int motor_run(MotorId motor, MotorDirection direction, uint8_t speed) {
         // LOG_DEBUG("Motor %d trim applied: %.2f, speed %d -> %d", motor, trim, speed, adjusted_speed);
     }
     
-    MotorConfig *cfg = &g_motor_ctrl.config.motors[motor];
+    motor_config_t *cfg = &g_motor_ctrl.config.motors[motor];
     
     /* 设置方向 */
     if (cfg->use_gpio_for_dir) {
@@ -113,7 +113,7 @@ int motor_run(MotorId motor, MotorDirection direction, uint8_t speed) {
 /**
  * 停止单个电机
  */
-int motor_stop(MotorId motor) {
+int motor_stop(motor_id_t motor) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
         return -1;
@@ -124,7 +124,7 @@ int motor_stop(MotorId motor) {
         return -1;
     }
     
-    MotorConfig *cfg = &g_motor_ctrl.config.motors[motor];
+    motor_config_t *cfg = &g_motor_ctrl.config.motors[motor];
     
     /* 设置 PWM 占空比为 0 */
     if (pca9685_set_duty_cycle(cfg->pwm_channel, 0) < 0) {
@@ -151,7 +151,7 @@ int motor_stop_all(void) {
 /**
  * 执行移动动作 (阻塞)
  */
-int motor_move(MoveDirection direction, uint8_t speed, uint32_t duration_ms) {
+int motor_move(move_direction_t direction, uint8_t speed, uint32_t duration_ms) {
     if (motor_move_async(direction, speed) < 0) {
         return -1;
     }
@@ -169,7 +169,7 @@ int motor_move(MoveDirection direction, uint8_t speed, uint32_t duration_ms) {
 /**
  * 执行移动动作 (不阻塞)
  */
-int motor_move_async(MoveDirection direction, uint8_t speed) {
+int motor_move_async(move_direction_t direction, uint8_t speed) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
         return -1;
@@ -300,7 +300,7 @@ int servo_set_angle(uint8_t channel, uint8_t angle) {
 /**
  * 移动指定距离 (阻塞)
  */
-int motor_move_distance(MoveDirection direction, float distance_cm) {
+int motor_move_distance(move_direction_t direction, float distance_cm) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
         return -1;

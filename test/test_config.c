@@ -12,7 +12,7 @@ void test_config(void) {
     unsetenv("WISE_SERVER_URL");
     unsetenv("WISE_DEVICE_HEARTBEAT");
     config_load(NULL);
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     assert(cfg != NULL);
     assert(cfg->server_url != NULL);
     assert(strcmp(cfg->server_url, "http://localhost:8080") == 0);
@@ -106,7 +106,7 @@ void test_config_env_overrides_file(void) {
     config_free();
     config_load(tmp_file);
 
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     assert(cfg != NULL);
     assert(strcmp(cfg->server_url, "http://from-env:8080") == 0);
     assert(cfg->heartbeat_interval == 99);

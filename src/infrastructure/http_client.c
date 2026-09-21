@@ -39,10 +39,10 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
     return realsize;
 }
 
-static HttpResponse *perform_request(const char *method, const char *url, const char *body, const char **headers, int header_count, int timeout_ms) {
+static http_response_t *perform_request(const char *method, const char *url, const char *body, const char **headers, int header_count, int timeout_ms) {
     CURL *curl;
     CURLcode res;
-    HttpResponse *response = NULL;
+    http_response_t *response = NULL;
     struct curl_slist *chunk = NULL;
 
     curl = curl_easy_init();
@@ -115,7 +115,7 @@ static HttpResponse *perform_request(const char *method, const char *url, const 
         LOG_ERROR("curl_easy_perform() failed: %s", curl_easy_strerror(res));
         xfree(chunk_data.data);
     } else {
-        response = (HttpResponse *)xmalloc_try(sizeof(HttpResponse));
+        response = (http_response_t *)xmalloc_try(sizeof(http_response_t));
         if (!response) {
             /* P4-06：内存不足返回 NULL（调用方按"无响应"处理），不再退出进程 */
             LOG_ERROR("分配 HTTP 响应结构失败（内存不足）");
@@ -136,20 +136,20 @@ static HttpResponse *perform_request(const char *method, const char *url, const 
     return response;
 }
 
-HttpResponse *http_get(const char *url, const char **headers, int header_count) {
+http_response_t *http_get(const char *url, const char **headers, int header_count) {
     return perform_request("GET", url, NULL, headers, header_count, 5000);
 }
 
-HttpResponse *http_post(const char *url, const char *json_body, const char **headers, int header_count) {
+http_response_t *http_post(const char *url, const char *json_body, const char **headers, int header_count) {
     return perform_request("POST", url, json_body, headers, header_count, 5000);
 }
 
-HttpResponse *http_put(const char *url, const char *json_body, const char **headers, int header_count) {
+http_response_t *http_put(const char *url, const char *json_body, const char **headers, int header_count) {
     return perform_request("PUT", url, json_body, headers, header_count, 5000);
 }
 
-HttpResponse *http_post_with_retry(const char *url, const char *json_body, const char **headers, int header_count, int timeout_ms, int max_retries) {
-    HttpResponse *res = NULL;
+http_response_t *http_post_with_retry(const char *url, const char *json_body, const char **headers, int header_count, int timeout_ms, int max_retries) {
+    http_response_t *res = NULL;
     int attempt = 0;
     
     while (attempt <= max_retries) {
@@ -180,7 +180,7 @@ HttpResponse *http_post_with_retry(const char *url, const char *json_body, const
     return NULL;
 }
 
-void http_response_free(HttpResponse *res) {
+void http_response_free(http_response_t *res) {
     if (res) {
         if (res->body) xfree(res->body);
         xfree(res);

@@ -45,8 +45,8 @@ void device_on_mqtt_message(const char *topic, const char *payload) {
     cJSON *targetDistanceItem = cJSON_GetObjectItem(json, "targetDistance");
     
     if (taskIdItem && taskTypeItem) {
-        // Create PatrolTask
-        PatrolTask *task = (PatrolTask *)xcalloc_try(1, sizeof(PatrolTask));
+        // Create patrol_task_t
+        patrol_task_t *task = (patrol_task_t *)xcalloc_try(1, sizeof(patrol_task_t));
         if (!task) {
             LOG_ERROR("分配巡检任务失败（内存不足），丢弃该 MQTT 任务消息");
             cJSON_Delete(json);
@@ -69,7 +69,7 @@ void device_on_mqtt_message(const char *topic, const char *payload) {
             float distance = (float)targetDistanceItem->valuedouble;
 
             // 1. Populate points (legacy/future support)
-            task->points = (PatrolPoint *)xcalloc_try(1, sizeof(PatrolPoint));
+            task->points = (patrol_point_t *)xcalloc_try(1, sizeof(patrol_point_t));
             if (!task->points) {
                 LOG_ERROR("分配巡检点失败（内存不足），丢弃该 MQTT 任务消息");
                 patrol_task_free(task);
@@ -84,8 +84,8 @@ void device_on_mqtt_message(const char *topic, const char *payload) {
             // The executor in patrol_task.c only looks at task->actions, not points.
             // We need to convert distance to duration-based action.
             
-            PatrolAction action;
-            memset(&action, 0, sizeof(PatrolAction));
+            patrol_action_t action;
+            memset(&action, 0, sizeof(patrol_action_t));
             action.type = PATROL_ACTION_MOVE_FORWARD;
             action.speed = 50; // Default speed (50%)
             
@@ -101,15 +101,15 @@ void device_on_mqtt_message(const char *topic, const char *payload) {
             patrol_task_add_action(task, &action);
             
             // Add RFID scan action
-            PatrolAction scan_action;
-            memset(&scan_action, 0, sizeof(PatrolAction));
+            patrol_action_t scan_action;
+            memset(&scan_action, 0, sizeof(patrol_action_t));
             scan_action.type = PATROL_ACTION_RFID_SCAN;
             scan_action.duration_ms = 2000; // Scan for 2 seconds
             patrol_task_add_action(task, &scan_action);
             
             // Also add a stop action at the end for safety
-            PatrolAction stop_action;
-            memset(&stop_action, 0, sizeof(PatrolAction));
+            patrol_action_t stop_action;
+            memset(&stop_action, 0, sizeof(patrol_action_t));
             stop_action.type = PATROL_ACTION_STOP;
             stop_action.duration_ms = 0; // Immediate stop
             patrol_task_add_action(task, &stop_action);

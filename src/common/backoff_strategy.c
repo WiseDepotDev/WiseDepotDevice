@@ -12,14 +12,14 @@
 #include <time.h>
 
 /* 默认配置 */
-static const BackoffConfig DEFAULT_CONFIG = {
+static const backoff_config_t DEFAULT_CONFIG = {
     .initial_interval_ms = 1000,
     .max_interval_ms = 300000, // 5 minutes
     .multiplier = 2.0,
     .jitter = 0.2
 };
 
-void backoff_init(BackoffState *state, const BackoffConfig *config) {
+void backoff_init(backoff_state_t *state, const backoff_config_t *config) {
     if (!state) return;
     
     if (config) {
@@ -43,13 +43,13 @@ void backoff_init(BackoffState *state, const BackoffConfig *config) {
     // Let's assume user calls srand(time(NULL)) in main.
 }
 
-void backoff_reset(BackoffState *state) {
+void backoff_reset(backoff_state_t *state) {
     if (!state) return;
     state->current_interval_ms = state->config.initial_interval_ms;
     state->attempts = 0;
 }
 
-unsigned int backoff_next_interval(BackoffState *state) {
+unsigned int backoff_next_interval(backoff_state_t *state) {
     if (!state) return 0;
     
     unsigned int interval = state->current_interval_ms;

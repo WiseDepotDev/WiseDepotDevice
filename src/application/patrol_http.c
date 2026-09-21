@@ -49,20 +49,20 @@ static bool is_response_success(const char *json) {
 /**
  * 从服务端获取待执行的巡检任务
  */
-PatrolTask *patrol_service_fetch_task(void) {
+patrol_task_t *patrol_service_fetch_task(void) {
     if (!g_patrol_service.initialized) {
         LOG_ERROR("Patrol service not initialized");
         return NULL;
     }
     
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     char url[1024];
     snprintf(url, sizeof(url), "%s/api/inspection/task?status=pending", 
              cfg->server_url);
     
     LOG_DEBUG("Fetching patrol task from: %s", url);
     
-    HttpResponse *res = NULL;
+    http_response_t *res = NULL;
     
     if (g_patrol_service.token) {
         char auth_header[1024];
@@ -154,7 +154,7 @@ PatrolTask *patrol_service_fetch_task(void) {
         return NULL;
     }
     
-    PatrolTask *task = patrol_task_from_json(task_start);
+    patrol_task_t *task = patrol_task_from_json(task_start);
     http_response_free(res);
     
     if (task) {
@@ -167,7 +167,7 @@ PatrolTask *patrol_service_fetch_task(void) {
 /**
  * 上报任务执行结果到服务端
  */
-int patrol_service_report_result(const PatrolTask *task) {
+int patrol_service_report_result(const patrol_task_t *task) {
     if (!task) {
         return -1;
     }
@@ -177,7 +177,7 @@ int patrol_service_report_result(const PatrolTask *task) {
         return -1;
     }
     
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     
     const char *status_str = "PENDING";
     if (task->status == PATROL_TASK_STATUS_RUNNING) {
@@ -200,7 +200,7 @@ int patrol_service_report_result(const PatrolTask *task) {
     
     LOG_DEBUG("Updating task status: %s", url);
     
-    HttpResponse *res = NULL;
+    http_response_t *res = NULL;
     
     if (g_patrol_service.token) {
         char auth_header[1024];
@@ -256,7 +256,7 @@ int patrol_service_report_result(const PatrolTask *task) {
     }
     
     if (res->status_code == 401 || res->status_code == 403) {
-        LOG_WARN("Task status update unauthorized (Status: %d)", res->status_code);
+        LOG_WARN("scheduler_task_t status update unauthorized (Status: %d)", res->status_code);
         patrol_service_clear_token();
         device_trigger_reauth();
         http_response_free(res);

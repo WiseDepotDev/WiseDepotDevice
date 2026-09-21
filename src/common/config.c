@@ -25,7 +25,7 @@
 #include <openssl/rand.h>
 
 /* 全局配置实例 */
-static Config *g_config = NULL;
+static wd_config_t *g_config = NULL;
 
 /* 默认配置 */
 #define DEFAULT_SERVER_URL "http://localhost:8080"
@@ -48,7 +48,7 @@ static char *trim(char *s) {
     return s;
 }
 
-static LogLevel parse_log_level(const char *level_str) {
+static log_level_t parse_log_level(const char *level_str) {
     if (!level_str) return DEFAULT_LOG_LEVEL;
     if (strcasecmp(level_str, "DEBUG") == 0) return LOG_LEVEL_DEBUG;
     if (strcasecmp(level_str, "INFO") == 0) return LOG_LEVEL_INFO;
@@ -59,7 +59,7 @@ static LogLevel parse_log_level(const char *level_str) {
 
 static int config_init_defaults(void) {
     if (g_config) return 0;
-    g_config = (Config *)xcalloc_try(1, sizeof(Config));
+    g_config = (wd_config_t *)xcalloc_try(1, sizeof(wd_config_t));
     if (!g_config) {
         LOG_ERROR("分配配置结构失败（内存不足）");
         return -1;
@@ -427,10 +427,10 @@ void config_set_server_url(const char *url) {
     if (!g_config || !url) return;
     if (g_config->server_url) xfree(g_config->server_url);
     g_config->server_url = xstrdup_try(url);
-    LOG_INFO("Config server URL updated to: %s", url);
+    LOG_INFO("wd_config_t server URL updated to: %s", url);
 }
 
-const Config *config_get(void) {
+const wd_config_t *config_get(void) {
     if (!g_config) config_init_defaults();
     return g_config;
 }

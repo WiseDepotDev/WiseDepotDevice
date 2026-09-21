@@ -8,7 +8,7 @@ static int g_counter = 0;
 static void task_increment(void *ctx) {
     (void)ctx;
     g_counter++;
-    printf("Task Increment: %d\n", g_counter);
+    printf("scheduler_task_t Increment: %d\n", g_counter);
 }
 
 void test_scheduler(void) {
@@ -17,7 +17,7 @@ void test_scheduler(void) {
     // 1. Init
     scheduler_init();
     
-    // 2. Add Task (interval 100ms)
+    // 2. Add scheduler_task_t (interval 100ms)
     scheduler_add_task("test_task", task_increment, NULL, 100);
     
     // 3. Run (resolution 50ms)

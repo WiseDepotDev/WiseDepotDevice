@@ -21,7 +21,7 @@
 
 /* 动作类型名称映射 */
 static const struct {
-    PatrolActionType type;
+    patrol_action_type_t type;
     const char *name;
 } g_action_type_names[] = {
     {PATROL_ACTION_MOVE_FORWARD, "move_forward"},
@@ -43,7 +43,7 @@ static const struct {
 
 /* 任务状态名称映射 */
 static const struct {
-    PatrolTaskStatus status;
+    patrol_task_status_t status;
     const char *name;
 } g_task_status_names[] = {
     {PATROL_TASK_STATUS_PENDING, "pending"},
@@ -53,12 +53,12 @@ static const struct {
     {PATROL_TASK_STATUS_CANCELLED, "cancelled"}
 };
 
-/* 取消标志已移入 PatrolTask.cancel_requested（P4-07）：不再有全局取消状态 */
+/* 取消标志已移入 patrol_task_t.cancel_requested（P4-07）：不再有全局取消状态 */
 
 /**
  * 获取动作类型名称
  */
-const char *patrol_action_type_to_string(PatrolActionType type) {
+const char *patrol_action_type_to_string(patrol_action_type_t type) {
     for (size_t i = 0; i < sizeof(g_action_type_names) / sizeof(g_action_type_names[0]); i++) {
         if (g_action_type_names[i].type == type) {
             return g_action_type_names[i].name;
@@ -70,7 +70,7 @@ const char *patrol_action_type_to_string(PatrolActionType type) {
 /**
  * 从字符串解析动作类型
  */
-PatrolActionType patrol_action_type_from_string(const char *str) {
+patrol_action_type_t patrol_action_type_from_string(const char *str) {
     if (!str) return PATROL_ACTION_UNKNOWN;
     
     for (size_t i = 0; i < sizeof(g_action_type_names) / sizeof(g_action_type_names[0]); i++) {
@@ -84,7 +84,7 @@ PatrolActionType patrol_action_type_from_string(const char *str) {
 /**
  * 获取任务状态名称
  */
-const char *patrol_task_status_to_string(PatrolTaskStatus status) {
+const char *patrol_task_status_to_string(patrol_task_status_t status) {
     for (size_t i = 0; i < sizeof(g_task_status_names) / sizeof(g_task_status_names[0]); i++) {
         if (g_task_status_names[i].status == status) {
             return g_task_status_names[i].name;
@@ -96,8 +96,8 @@ const char *patrol_task_status_to_string(PatrolTaskStatus status) {
 /**
  * 创建空的巡检任务
  */
-PatrolTask *patrol_task_create(const char *id, const char *name) {
-    PatrolTask *task = xcalloc_try(1, sizeof(PatrolTask));
+patrol_task_t *patrol_task_create(const char *id, const char *name) {
+    patrol_task_t *task = xcalloc_try(1, sizeof(patrol_task_t));
     if (!task) {
         LOG_ERROR("创建巡检任务失败（内存不足）");
         return NULL;
@@ -124,7 +124,7 @@ PatrolTask *patrol_task_create(const char *id, const char *name) {
 /**
  * 向任务添加动作
  */
-int patrol_task_add_action(PatrolTask *task, const PatrolAction *action) {
+int patrol_task_add_action(patrol_task_t *task, const patrol_action_t *action) {
     if (!task || !action) {
         return -1;
     }
@@ -134,7 +134,7 @@ int patrol_task_add_action(PatrolTask *task, const PatrolAction *action) {
         return -1;
     }
     
-    memcpy(&task->actions[task->action_count], action, sizeof(PatrolAction));
+    memcpy(&task->actions[task->action_count], action, sizeof(patrol_action_t));
     task->action_count++;
     
     return 0;
@@ -143,7 +143,7 @@ int patrol_task_add_action(PatrolTask *task, const PatrolAction *action) {
 /**
  * 执行单个动作
  */
-static int execute_action(const PatrolAction *action) {
+static int execute_action(const patrol_action_t *action) {
     int result = 0;
     
     switch (action->type) {
@@ -243,7 +243,7 @@ static int execute_action(const PatrolAction *action) {
 /**
  * 执行巡检任务
  */
-int patrol_task_execute(PatrolTask *task, PatrolTaskCallback callback, void *context) {
+int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, void *context) {
     if (!task) {
         return -1;
     }
@@ -275,7 +275,7 @@ int patrol_task_execute(PatrolTask *task, PatrolTaskCallback callback, void *con
         }
         
         task->current_action_index = i;
-        PatrolAction *action = &task->actions[i];
+        patrol_action_t *action = &task->actions[i];
         
         LOG_DEBUG("Executing action %d/%d: %s (speed: %d%%, duration: %ums)",
                   i + 1, task->action_count,
@@ -324,7 +324,7 @@ int patrol_task_execute(PatrolTask *task, PatrolTaskCallback callback, void *con
 /**
  * 取消巡检任务
  */
-int patrol_task_cancel(PatrolTask *task) {
+int patrol_task_cancel(patrol_task_t *task) {
     if (!task) {
         return -1;
     }
@@ -342,7 +342,7 @@ int patrol_task_cancel(PatrolTask *task) {
 /**
  * 释放巡检任务资源
  */
-void patrol_task_free(PatrolTask *task) {
+void patrol_task_free(patrol_task_t *task) {
     if (task) {
         xfree(task);
     }

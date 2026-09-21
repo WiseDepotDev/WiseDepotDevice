@@ -27,7 +27,7 @@ int log_service_init(void) {
     return 0;
 }
 
-static void process_upload_queue(const Config *cfg) {
+static void process_upload_queue(const wd_config_t *cfg) {
     // Scan directory for files starting with UPLOAD_QUEUE_PREFIX
     // For simplicity, we assume logs are in current directory (where we run)
     // Or check cfg->log_path directory.
@@ -79,7 +79,7 @@ static void process_upload_queue(const Config *cfg) {
                 // Let's send raw text with Content-Type: text/plain
                 const char *headers[] = { "Content-Type: text/plain" };
                 
-                HttpResponse *res = http_post_with_retry(url, buffer, headers, 1, 10000, 3);
+                http_response_t *res = http_post_with_retry(url, buffer, headers, 1, 10000, 3);
                 
                 if (res && res->status_code == 200) {
                     LOG_INFO("Log uploaded successfully: %s", dir->d_name);
@@ -103,7 +103,7 @@ static void process_upload_queue(const Config *cfg) {
 
 void log_upload_task(void *ctx) {
     (void)ctx;
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     
     // Check if current log file needs rotation
     struct stat st;

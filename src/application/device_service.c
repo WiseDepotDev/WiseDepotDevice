@@ -70,8 +70,8 @@ int device_service_init(void) {
         LOG_WARN("Failed to init motor controller, patrol tasks may not work");
     }
     
-    const Config *cfg = config_get();
-    PatrolServiceConfig patrol_cfg = patrol_service_get_default_config();
+    const wd_config_t *cfg = config_get();
+    patrol_service_config_t patrol_cfg = patrol_service_get_default_config();
     if (cfg) {
         patrol_cfg.task_poll_interval = cfg->task_poll_interval;
     }
@@ -161,7 +161,7 @@ void device_service_maintenance(void *ctx) {
     }
     
     // Check MQTT connection and reconnect if needed
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     if (cfg && !mqtt_client_is_connected()) {
         static time_t last_mqtt_retry = 0;
         time_t now = time(NULL);
@@ -213,16 +213,16 @@ void device_run(void) {
         g_reauth_needed = 1;
     }
 
-    // 3. Fetch Initial Config
+    // 3. Fetch Initial wd_config_t
     config_fetch_task(NULL);
     
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
 
     // 4. Start Tasks
     // Heartbeat (1s default)
     scheduler_add_task("Heartbeat", heartbeat_wrapper, NULL, cfg->heartbeat_interval * 1000);
     
-    // Config Fetch (60s)
+    // wd_config_t Fetch (60s)
     scheduler_add_task("ConfigFetch", config_fetch_task, NULL, 60000);
     
     // Log Upload (5s)

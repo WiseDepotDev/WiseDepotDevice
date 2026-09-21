@@ -18,7 +18,7 @@ typedef enum {
     LOG_LEVEL_WARN  = 2,
     LOG_LEVEL_ERROR = 3,
     LOG_LEVEL_NONE  = 4
-} LogLevel;
+} log_level_t;
 
 /**
  * 初始化日志系统
@@ -27,7 +27,7 @@ typedef enum {
  * @param level 最低日志级别
  * @return 0 成功，-1 失败
  */
-int logger_init(const char *log_file, LogLevel level);
+int logger_init(const char *log_file, log_level_t level);
 
 /**
  * 重新打开日志文件 (用于日志轮转)
@@ -51,7 +51,7 @@ void logger_close(void);
  * @param fmt 格式化字符串
  * @param ... 参数
  */
-void logger_log(LogLevel level, const char *file, int line, const char *fmt, ...);
+void logger_log(log_level_t level, const char *file, int line, const char *fmt, ...);
 
 /* 便捷宏定义 */
 #define LOG_DEBUG(...) logger_log(LOG_LEVEL_DEBUG, __FILE__, __LINE__, __VA_ARGS__)

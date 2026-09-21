@@ -94,8 +94,8 @@ static char *extract_json_string(const char *json, const char *key) {
 }
 
 int device_register(void) {
-    const Config *cfg = config_get();
-    const DeviceInfo *info = device_info_get();
+    const wd_config_t *cfg = config_get();
+    const device_info_t *info = device_info_get();
     
     char url[1024];
     snprintf(url, sizeof(url), "%s/api/device/register", cfg->server_url);
@@ -162,7 +162,7 @@ int device_register(void) {
     
     LOG_INFO("Registering device: %s (Model: %s, OS: %s)", cfg->device_id, info->model, info->os_name);
     
-    HttpResponse *res = http_post_with_retry(url, body, headers, 3, 10000, 3);
+    http_response_t *res = http_post_with_retry(url, body, headers, 3, 10000, 3);
     
     xfree(signature);
     
@@ -239,7 +239,7 @@ void device_service_set_tokens(const char *access_token, const char *refresh_tok
 }
 
 int device_refresh_token(void) {
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     
     if (!g_refresh_token) {
         LOG_ERROR("No refresh token available");
@@ -254,7 +254,7 @@ int device_refresh_token(void) {
     
     LOG_INFO("Refreshing token...");
     
-    HttpResponse *res = http_post(url, body, NULL, 0);
+    http_response_t *res = http_post(url, body, NULL, 0);
     
     if (!res) {
         LOG_ERROR("Token refresh request failed (Network error)");

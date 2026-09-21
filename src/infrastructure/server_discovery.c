@@ -65,7 +65,7 @@ int server_discovery_init(void) {
 }
 
 static char *create_probe_packet(void) {
-    const Config *cfg = config_get();
+    const wd_config_t *cfg = config_get();
     cJSON *root = cJSON_CreateObject();
     
     cJSON_AddStringToObject(root, "type", "DISCOVERY_PROBE");

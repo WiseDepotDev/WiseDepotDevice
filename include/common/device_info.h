@@ -17,7 +17,7 @@ typedef struct {
     char *kernel_ver;   /**< 内核版本 (如 5.15.0-101-generic) */
     char *model;        /**< 设备型号 (如 WiseDevice-V1) */
     char *serial_no;    /**< 序列号 (可选，默认使用 device_id) */
-} DeviceInfo;
+} device_info_t;
 
 /**
  * 获取当前设备信息
@@ -25,7 +25,7 @@ typedef struct {
  *
  * @return 设备信息结构体指针 (由模块内部管理内存，不可释放)
  */
-const DeviceInfo *device_info_get(void);
+const device_info_t *device_info_get(void);
 
 /**
  * 释放设备信息资源

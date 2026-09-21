@@ -19,7 +19,7 @@
 /* 全局日志状态（P4-03：全部共享状态由 g_log_mutex 保护） */
 static FILE *g_log_fp = NULL;
 static char *g_log_file = NULL;
-static LogLevel g_log_level = LOG_LEVEL_INFO;
+static log_level_t g_log_level = LOG_LEVEL_INFO;
 
 /* 并发设计（P4-03）：
  * - 状态区（g_log_fp / g_log_file / g_log_level / g_recent_logs / g_log_history_idx）统一由本互斥量保护；
@@ -41,7 +41,7 @@ typedef struct {
 static LogHistory g_recent_logs[MAX_RECENT_LOGS];
 static int g_log_history_idx = 0;
 
-int logger_init(const char *log_file, LogLevel level) {
+int logger_init(const char *log_file, log_level_t level) {
     pthread_mutex_lock(&g_log_mutex);
 
     g_log_level = level;
@@ -124,7 +124,7 @@ void logger_close(void) {
     pthread_mutex_unlock(&g_log_mutex);
 }
 
-static const char *get_level_str(LogLevel level) {
+static const char *get_level_str(log_level_t level) {
     switch (level) {
         case LOG_LEVEL_DEBUG: return "DEBUG";
         case LOG_LEVEL_INFO:  return "INFO";
@@ -134,7 +134,7 @@ static const char *get_level_str(LogLevel level) {
     }
 }
 
-void logger_log(LogLevel level, const char *file, int line, const char *fmt, ...) {
+void logger_log(log_level_t level, const char *file, int line, const char *fmt, ...) {
     /* 1) 先在局部缓冲完成格式化：不碰共享状态，尽量缩短临界区 */
     va_list args;
     char buffer[1024];

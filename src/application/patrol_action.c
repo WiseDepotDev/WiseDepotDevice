@@ -41,10 +41,10 @@ static void merge_scan_into_context(patrol_scan_context_t *ctx, const rfid_tag_t
     }
 }
 
-int patrol_action_callback(const PatrolTask *task, uint8_t action_index, void *context) {
+int patrol_action_callback(const patrol_task_t *task, uint8_t action_index, void *context) {
     patrol_scan_context_t *scan_ctx = (patrol_scan_context_t *)context;
     if (action_index >= task->action_count) return -1;
-    const PatrolAction *action = &task->actions[action_index];
+    const patrol_action_t *action = &task->actions[action_index];
     
     // 移动动作：移动过程中仅做 RFID 扫描并累积到 context，不拉取库存、不上传
     if (action->type == PATROL_ACTION_MOVE_FORWARD || 
@@ -57,7 +57,7 @@ int patrol_action_callback(const PatrolTask *task, uint8_t action_index, void *c
         LOG_INFO("Executing move action with RFID scanning (accumulate only): %s", 
                  patrol_action_type_to_string(action->type));
         
-        MoveDirection dir;
+        move_direction_t dir;
         switch(action->type) {
             case PATROL_ACTION_MOVE_FORWARD: dir = MOVE_FORWARD; break;
             case PATROL_ACTION_MOVE_BACKWARD: dir = MOVE_BACKWARD; break;
@@ -127,7 +127,7 @@ int patrol_action_callback(const PatrolTask *task, uint8_t action_index, void *c
                 snprintf(header_time, sizeof(header_time), "X-Timestamp: %s", timestamp);
                 snprintf(header_nonce, sizeof(header_nonce), "X-Nonce: %s", nonce);
                 const char *headers[] = { header_sign, header_time, header_nonce };
-                HttpResponse *res = http_put(url, NULL, headers, 3);
+                http_response_t *res = http_put(url, NULL, headers, 3);
                 if (res) {
                     if (res->status_code >= 200 && res->status_code < 300) {
                         LOG_DEBUG("Progress updated: %d%%", progress);

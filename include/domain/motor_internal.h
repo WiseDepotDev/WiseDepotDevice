@@ -49,7 +49,7 @@
 typedef struct {
     int i2c_fd;                             /**< I2C 文件描述符 */
     uint8_t i2c_address;                    /**< PCA9685 I2C 地址 */
-    MotorControllerConfig config;           /**< 控制器配置 */
+    motor_controller_config_t config;           /**< 控制器配置 */
     bool initialized;                       /**< 初始化标志 */
     int gpio_fds[MOTOR_COUNT * 2];          /**< GPIO 文件描述符 (每个电机2个方向引脚) */
 } motor_ctrl_state_t;

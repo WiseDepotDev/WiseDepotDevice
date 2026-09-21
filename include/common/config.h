@@ -18,7 +18,7 @@ typedef struct {
     char *device_id;        /**< 设备唯一标识 */
     int heartbeat_interval; /**< 心跳间隔 (秒) */
     char *log_path;         /**< 日志文件路径 */
-    LogLevel log_level;     /**< 日志级别 */
+    log_level_t log_level;     /**< 日志级别 */
     float move_speed_cm_s;  /**< 移动速度 (cm/s) */
     
     // 电机微调参数 (-1.0 到 1.0，正数增加速度，负数减少速度)
@@ -48,7 +48,7 @@ typedef struct {
 
     // 请求签名（P4-04）
     char *signature_secret; /**< X-Signature 的 HMAC 密钥；仅来自环境变量/配置文件，源码内无默认值 */
-} Config;
+} wd_config_t;
 
 /**
  * 加载配置
@@ -92,7 +92,7 @@ int config_secure_delete(const char *file_path);
  *
  * @return 配置指针
  */
-const Config *config_get(void);
+const wd_config_t *config_get(void);
 
 /**
  * 请求签名密钥（P4-04：全仓唯一来源）

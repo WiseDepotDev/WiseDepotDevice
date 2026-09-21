@@ -17,19 +17,19 @@
  *
  * @param context 任务上下文指针
  */
-typedef void (*TaskCallback)(void *context);
+typedef void (*scheduler_task_callback_t)(void *context);
 
 /**
  * 任务结构体
  */
-typedef struct Task {
+typedef struct scheduler_task_t {
     char *name;              /**< 任务名称 */
-    TaskCallback callback;   /**< 回调函数 */
+    scheduler_task_callback_t callback;   /**< 回调函数 */
     void *context;           /**< 上下文数据 */
     unsigned int interval_ms;/**< 执行间隔 (毫秒) */
     unsigned long long last_run; /**< 上次执行时间戳 (毫秒) */
-    struct Task *next;       /**< 链表指针 */
-} Task;
+    struct scheduler_task_t *next;       /**< 链表指针 */
+} scheduler_task_t;
 
 /**
  * 初始化调度器
@@ -47,7 +47,7 @@ int scheduler_init(void);
  * @param interval_ms 执行间隔 (毫秒)
  * @return 0 成功，-1 失败
  */
-int scheduler_add_task(const char *name, TaskCallback callback, void *context, unsigned int interval_ms);
+int scheduler_add_task(const char *name, scheduler_task_callback_t callback, void *context, unsigned int interval_ms);
 
 /**
  * 运行调度器 (阻塞直到 scheduler_stop 被调用)

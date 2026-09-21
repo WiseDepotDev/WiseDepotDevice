@@ -3,8 +3,8 @@
 #include <stdio.h>
 
 void test_backoff_strategy(void) {
-    BackoffState state;
-    BackoffConfig config = {
+    backoff_state_t state;
+    backoff_config_t config = {
         .initial_interval_ms = 1000,
         .max_interval_ms = 10000,
         .multiplier = 2.0,

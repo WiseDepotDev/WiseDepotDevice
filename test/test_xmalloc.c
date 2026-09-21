@@ -86,14 +86,14 @@ void test_xmalloc_try_returns_null_on_failure(void) {
 void test_business_path_degrades_on_oom(void) {
     /* 1) patrol_task_create 在第一次分配就失败 → 返回 NULL */
     xmalloc_set_fail_after(0);
-    PatrolTask *task = patrol_task_create("t-oom", "oom");
+    patrol_task_t *task = patrol_task_create("t-oom", "oom");
     assert(task == NULL);
     xmalloc_clear_fail_after();
 
     /* 2) 正常创建，但让"加动作"所需的分配失败 → 走错误码而不是崩溃 */
     task = patrol_task_create("t-ok", "ok");
     assert(task != NULL);
-    PatrolAction action;
+    patrol_action_t action;
     memset(&action, 0, sizeof(action));
     action.type = PATROL_ACTION_MOVE_FORWARD;
     action.speed = 50;

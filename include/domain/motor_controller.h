@@ -24,7 +24,7 @@ typedef enum {
     MOTOR_C = 2,    /**< 电机C (左后) */
     MOTOR_D = 3,    /**< 电机D (右后) */
     MOTOR_COUNT = 4 /**< 电机总数 */
-} MotorId;
+} motor_id_t;
 
 /**
  * 电机方向枚举
@@ -32,7 +32,7 @@ typedef enum {
 typedef enum {
     MOTOR_DIR_FORWARD = 0,  /**< 正转 */
     MOTOR_DIR_BACKWARD = 1  /**< 反转 */
-} MotorDirection;
+} motor_direction_t;
 
 /**
  * 移动方向枚举
@@ -48,7 +48,7 @@ typedef enum {
     MOVE_FORWARD_RIGHT, /**< 前右斜 */
     MOVE_BACKWARD_LEFT, /**< 后左斜 */
     MOVE_BACKWARD_RIGHT /**< 后右斜 */
-} MoveDirection;
+} move_direction_t;
 
 /**
  * 电机配置结构体
@@ -60,7 +60,7 @@ typedef struct {
     bool use_gpio_for_dir;  /**< 是否使用GPIO控制方向 */
     int gpio_in1;           /**< GPIO引脚1 (仅当use_gpio_for_dir为true时有效) */
     int gpio_in2;           /**< GPIO引脚2 (仅当use_gpio_for_dir为true时有效) */
-} MotorConfig;
+} motor_config_t;
 
 /**
  * 电机控制器配置结构体
@@ -71,13 +71,13 @@ typedef struct {
 typedef struct {
     uint8_t i2c_address;    /**< PCA9685 I2C地址 */
     uint16_t pwm_frequency; /**< PWM频率 (Hz) */
-    MotorConfig motors[MOTOR_COUNT]; /**< 电机配置数组 */
+    motor_config_t motors[MOTOR_COUNT]; /**< 电机配置数组 */
     float move_speed_cm_s;  /**< 标定速度 (cm/s)，0 表示用内置默认值 */
     float trim_a;           /**< 左前微调 (-1.0 ~ 1.0) */
     float trim_b;           /**< 右前微调 */
     float trim_c;           /**< 左后微调 */
     float trim_d;           /**< 右后微调 */
-} MotorControllerConfig;
+} motor_controller_config_t;
 
 /**
  * 初始化电机控制器
@@ -85,7 +85,7 @@ typedef struct {
  * @param config 控制器配置 (NULL则使用默认配置)
  * @return 0 成功，-1 失败
  */
-int motor_controller_init(const MotorControllerConfig *config);
+int motor_controller_init(const motor_controller_config_t *config);
 
 /**
  * 设置单个电机运行状态
@@ -95,7 +95,7 @@ int motor_controller_init(const MotorControllerConfig *config);
  * @param speed 速度百分比 (0-100)
  * @return 0 成功，-1 失败
  */
-int motor_run(MotorId motor, MotorDirection direction, uint8_t speed);
+int motor_run(motor_id_t motor, motor_direction_t direction, uint8_t speed);
 
 /**
  * 停止单个电机
@@ -103,7 +103,7 @@ int motor_run(MotorId motor, MotorDirection direction, uint8_t speed);
  * @param motor 电机编号
  * @return 0 成功，-1 失败
  */
-int motor_stop(MotorId motor);
+int motor_stop(motor_id_t motor);
 
 /**
  * 停止所有电机
@@ -120,7 +120,7 @@ int motor_stop_all(void);
  * @param duration_ms 持续时间 (毫秒)
  * @return 0 成功，-1 失败
  */
-int motor_move(MoveDirection direction, uint8_t speed, uint32_t duration_ms);
+int motor_move(move_direction_t direction, uint8_t speed, uint32_t duration_ms);
 
 /**
  * 执行移动动作 (不阻塞)
@@ -129,7 +129,7 @@ int motor_move(MoveDirection direction, uint8_t speed, uint32_t duration_ms);
  * @param speed 速度百分比 (0-100)
  * @return 0 成功，-1 失败
  */
-int motor_move_async(MoveDirection direction, uint8_t speed);
+int motor_move_async(move_direction_t direction, uint8_t speed);
 
 /**
  * 移动指定距离 (阻塞)
@@ -138,7 +138,7 @@ int motor_move_async(MoveDirection direction, uint8_t speed);
  * @param distance_cm 移动距离 (厘米)
  * @return 0 成功，-1 失败
  */
-int motor_move_distance(MoveDirection direction, float distance_cm);
+int motor_move_distance(move_direction_t direction, float distance_cm);
 
 /**
  * 设置舵机角度
@@ -159,6 +159,6 @@ void motor_controller_cleanup(void);
  * 
  * @return 默认配置结构体
  */
-MotorControllerConfig motor_controller_get_default_config(void);
+motor_controller_config_t motor_controller_get_default_config(void);
 
 #endif // WISE_DEPOT_MOTOR_CONTROLLER_H
