@@ -3,6 +3,7 @@
 #include "common/logger.h"
 #include "common/utils.h"
 #include "common/xmalloc.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

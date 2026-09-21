@@ -64,11 +64,19 @@ typedef struct {
 
 /**
  * 电机控制器配置结构体
+ *
+ * P4-09：速度与四路微调参数改为**由调用方（application 层）注入**，
+ * domain 不再回头读 common 层的全局配置（消除 domain → common/config 的隐性依赖）。
  */
 typedef struct {
     uint8_t i2c_address;    /**< PCA9685 I2C地址 */
     uint16_t pwm_frequency; /**< PWM频率 (Hz) */
     MotorConfig motors[MOTOR_COUNT]; /**< 电机配置数组 */
+    float move_speed_cm_s;  /**< 标定速度 (cm/s)，0 表示用内置默认值 */
+    float trim_a;           /**< 左前微调 (-1.0 ~ 1.0) */
+    float trim_b;           /**< 右前微调 */
+    float trim_c;           /**< 左后微调 */
+    float trim_d;           /**< 右后微调 */
 } MotorControllerConfig;
 
 /**

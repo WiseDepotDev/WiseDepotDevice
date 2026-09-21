@@ -9,6 +9,7 @@
 #include "common/config.h"
 #include "common/logger.h"
 #include "application/config_service.h"
+#include "application/motor_service.h"
 #include "application/device_service.h"
 #include "domain/motor_controller.h"
 #include <stdio.h>
@@ -73,8 +74,8 @@ int main(int argc, char *argv[]) {
         
         LOG_INFO("Initializing motor controller...");
         
-        MotorControllerConfig motor_cfg = motor_controller_get_default_config();
-        if (motor_controller_init(&motor_cfg) != 0) {
+        /* P4-09：标定/测试模式同样走 application 层的电机服务（配置由它注入 domain） */
+        if (motor_service_init() != 0) {
             LOG_ERROR("Failed to initialize motor controller");
             return EXIT_FAILURE;
         }

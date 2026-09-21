@@ -1,7 +1,7 @@
 #ifndef INVENTORY_MANAGER_H
 #define INVENTORY_MANAGER_H
 
-#include "infrastructure/rfid_driver.h"
+#include "domain/tag.h"
 #include <cJSON.h>
 #include <time.h>
 

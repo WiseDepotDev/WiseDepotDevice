@@ -12,7 +12,6 @@
 #include "domain/motor_controller.h"
 #include "common/logger.h"
 #include "common/xmalloc.h"
-#include "common/config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -113,7 +112,14 @@ MotorControllerConfig motor_controller_get_default_config(void) {
                 .gpio_in1 = 25, // GPIO 25 (BCM)
                 .gpio_in2 = 24  // GPIO 24 (BCM)
             }
-        }
+        },
+        /* P4-09：速度与微调默认 0 —— 由 application 层在 init 时注入真实标定值
+         *（0 表示"未注入"，trim 为 0 即不微调，speed 为 0 时用内置 20cm/s 兜底） */
+        .move_speed_cm_s = 0.0f,
+        .trim_a = 0.0f,
+        .trim_b = 0.0f,
+        .trim_c = 0.0f,
+        .trim_d = 0.0f
     };
     return config;
 }
@@ -210,14 +216,13 @@ int motor_run(MotorId motor, MotorDirection direction, uint8_t speed) {
         speed = 100;
     }
 
-    /* 应用电机微调参数 */
-    const Config *app_config = config_get();
+    /* 应用电机微调参数（P4-09：来自 init 时注入的配置，不再读 common 层全局配置） */
     float trim = 0.0f;
     switch (motor) {
-        case MOTOR_A: trim = app_config->motor_trim_a; break;
-        case MOTOR_B: trim = app_config->motor_trim_b; break;
-        case MOTOR_C: trim = app_config->motor_trim_c; break;
-        case MOTOR_D: trim = app_config->motor_trim_d; break;
+        case MOTOR_A: trim = g_motor_ctrl.config.trim_a; break;
+        case MOTOR_B: trim = g_motor_ctrl.config.trim_b; break;
+        case MOTOR_C: trim = g_motor_ctrl.config.trim_c; break;
+        case MOTOR_D: trim = g_motor_ctrl.config.trim_d; break;
         default: break;
     }
     
@@ -489,8 +494,8 @@ int motor_move_distance(MoveDirection direction, float distance_cm) {
         return -1;
     }
     
-    const Config *cfg = config_get();
-    float speed_cm_s = cfg->move_speed_cm_s;
+    /* P4-09：标定速度同样来自 init 注入的配置 */
+    float speed_cm_s = g_motor_ctrl.config.move_speed_cm_s;
     if (speed_cm_s <= 0.0f) {
         speed_cm_s = 20.0f; // Default if not configured
     }

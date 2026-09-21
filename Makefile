@@ -96,7 +96,10 @@ check-layers:
 	@if grep -rn '#include "infrastructure/' src/common include/common; then echo "FAIL: common 层不得依赖 infrastructure"; exit 1; fi
 	@if grep -rn '#include "application/' src/common include/common; then echo "FAIL: common 层不得依赖 application"; exit 1; fi
 	@if grep -rn '#include "application/' src/domain include/domain; then echo "FAIL: domain 层不得依赖 application"; exit 1; fi
-	@echo "layer check OK: common->infrastructure=0, common->application=0, domain->application=0"
+	@if grep -rn '#include "infrastructure/' src/domain include/domain; then echo "FAIL: domain 层不得依赖 infrastructure（P4-09）"; exit 1; fi
+	@if grep -rn '#include "common/config.h"' src/domain include/domain; then echo "FAIL: domain 不得直接依赖 common/config.h（配置应由 application 注入，P4-09）"; exit 1; fi
+	@if grep -rn 'config_get()' src/domain include/domain; then echo "FAIL: domain 不得调用 config_get()（P4-09）"; exit 1; fi
+	@echo "layer check OK: common->infra=0, common->app=0, domain->app=0, domain->infra=0, domain->config=0"
 
 # 代码覆盖率 (需要 lcov)
 coverage: CFLAGS = $(CFLAGS_DEBUG) --coverage

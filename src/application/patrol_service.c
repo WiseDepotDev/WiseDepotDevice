@@ -13,7 +13,7 @@
 #include "application/rfid_service.h"
 #include "application/motor_service.h"
 #include "domain/inventory_manager.h"
-#include "infrastructure/rfid_driver.h"
+#include "domain/tag.h"
 #include "common/config.h"
 #include "common/logger.h"
 #include "common/xmalloc.h"

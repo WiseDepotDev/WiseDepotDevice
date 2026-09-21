@@ -5,16 +5,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-// RFID Tag Structure
-typedef struct {
-    uint8_t epc[32]; // Max EPC length
-    uint8_t epc_len; // Actual EPC length in bytes
-    uint8_t tid[32]; // Max TID length
-    uint8_t tid_len; // Actual TID length in bytes
-    uint8_t user_data[64]; // Max User Data
-    uint8_t user_len;
-    int8_t rssi;     // Signal strength (if available)
-} rfid_tag_t;
+/* P4-09：标签值对象已下沉到 domain（include/domain/tag.h），驱动层反向引用它 ——
+ * 依赖方向为 infrastructure → domain，domain 不再依赖 infrastructure。 */
+#include "domain/tag.h"
 
 // Configuration
 typedef struct {

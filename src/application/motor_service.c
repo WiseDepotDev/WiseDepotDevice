@@ -1,5 +1,6 @@
 #include "application/motor_service.h"
 #include "domain/motor_controller.h"
+#include "common/config.h"
 #include "common/logger.h"
 #include <stddef.h>
 
@@ -7,8 +8,20 @@ static int is_moving = 0;
 
 int motor_service_init(void) {
     LOG_INFO("Motor service initialized");
-    // Delegate to domain controller
-    return motor_controller_init(NULL); // Use default config
+
+    /* P4-09：由 application 层把 common 层的配置注入 domain ——
+     * domain 不再回头调用 config_get()（分层围栏 check-layers 会拦住回退）。 */
+    MotorControllerConfig cfg = motor_controller_get_default_config();
+    const Config *app_cfg = config_get();
+    if (app_cfg) {
+        cfg.move_speed_cm_s = app_cfg->move_speed_cm_s;
+        cfg.trim_a = app_cfg->motor_trim_a;
+        cfg.trim_b = app_cfg->motor_trim_b;
+        cfg.trim_c = app_cfg->motor_trim_c;
+        cfg.trim_d = app_cfg->motor_trim_d;
+    }
+
+    return motor_controller_init(&cfg);
 }
 
 void motor_service_cleanup(void) {

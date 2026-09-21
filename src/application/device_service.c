@@ -12,7 +12,7 @@
 #include "application/config_service.h"
 #include "application/log_service.h"
 #include "application/rfid_service.h"
-#include "domain/motor_controller.h"
+#include "application/motor_service.h"
 #include "common/config.h"
 #include "common/logger.h"
 #include "common/xmalloc.h"
@@ -246,7 +246,8 @@ int device_service_init(void) {
         return -1;
     }
     
-    if (motor_controller_init(NULL) != 0) {
+    /* P4-09：统一走 application 层的电机服务初始化（由它把配置注入 domain） */
+    if (motor_service_init() != 0) {
         LOG_WARN("Failed to init motor controller, patrol tasks may not work");
     }
     

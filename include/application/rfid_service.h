@@ -2,7 +2,7 @@
 #define RFID_SERVICE_H
 
 #include <stdbool.h>
-#include "infrastructure/rfid_driver.h"
+#include "domain/tag.h"
 #include "domain/inventory_manager.h"
 
 typedef struct {
