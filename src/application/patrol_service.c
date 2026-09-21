@@ -104,7 +104,11 @@ static int patrol_action_callback(const PatrolTask *task, uint8_t action_index, 
         struct timespec start_time, current_time;
         clock_gettime(CLOCK_MONOTONIC, &start_time);
         long elapsed_ms = 0;
-        rfid_tag_t *batch = (rfid_tag_t *)xcalloc(PATROL_SCAN_BATCH_SIZE, sizeof(rfid_tag_t));
+        rfid_tag_t *batch = (rfid_tag_t *)xcalloc_try(PATROL_SCAN_BATCH_SIZE, sizeof(rfid_tag_t));
+        if (!batch) {
+            LOG_ERROR("分配扫码缓冲区失败（内存不足），巡检动作中止");
+            return -1;
+        }
         
         while (elapsed_ms < action->duration_ms) {
             int n = rfid_service_scan_only(batch, PATROL_SCAN_BATCH_SIZE);
@@ -168,7 +172,11 @@ static int patrol_action_callback(const PatrolTask *task, uint8_t action_index, 
     
     if (action->type == PATROL_ACTION_RFID_SCAN) {
         LOG_INFO("Executing RFID Scan Action (accumulate only)");
-        rfid_tag_t *batch = (rfid_tag_t *)xcalloc(PATROL_SCAN_BATCH_SIZE, sizeof(rfid_tag_t));
+        rfid_tag_t *batch = (rfid_tag_t *)xcalloc_try(PATROL_SCAN_BATCH_SIZE, sizeof(rfid_tag_t));
+        if (!batch) {
+            LOG_ERROR("分配扫码缓冲区失败（内存不足），RFID 盘点动作中止");
+            return -1;
+        }
         int n = rfid_service_scan_only(batch, PATROL_SCAN_BATCH_SIZE);
         if (n > 0 && scan_ctx) {
             merge_scan_into_context(scan_ctx, batch, n);
@@ -238,12 +246,20 @@ int patrol_service_init(const PatrolServiceConfig *config) {
  * 设置认证Token
  */
 void patrol_service_set_token(const char *token) {
+    if (token) {
+        /* P4-06：先复制成功再替换，失败时保持原令牌不变 */
+        char *copy = xstrdup_try(token);
+        if (!copy) {
+            LOG_ERROR("保存巡检服务令牌失败（内存不足），保持原令牌不变");
+            return;
+        }
+        if (g_patrol_service.token) xfree(g_patrol_service.token);
+        g_patrol_service.token = copy;
+        return;
+    }
     if (g_patrol_service.token) {
         xfree(g_patrol_service.token);
         g_patrol_service.token = NULL;
-    }
-    if (token) {
-        g_patrol_service.token = xstrdup(token);
     }
 }
 
@@ -536,10 +552,14 @@ static void *patrol_task_thread_func(void *arg) {
     
     // 2. 初始化本次巡检的 RFID 累积上下文（按 EPC 去重）
     patrol_scan_context_t scan_ctx = {
-        .tags = (rfid_tag_t *)xcalloc(PATROL_MAX_ACCUMULATED_TAGS, sizeof(rfid_tag_t)),
+        .tags = (rfid_tag_t *)xcalloc_try(PATROL_MAX_ACCUMULATED_TAGS, sizeof(rfid_tag_t)),
         .count = 0,
         .capacity = PATROL_MAX_ACCUMULATED_TAGS
     };
+    if (!scan_ctx.tags) {
+        LOG_ERROR("分配巡检扫描缓冲区失败（内存不足），本次巡检中止");
+        return NULL;
+    }
     
     // 3. 上报开始执行 (Status: IN_PROGRESS)
     if (g_patrol_service.config.auto_report_status) {

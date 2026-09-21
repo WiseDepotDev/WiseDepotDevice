@@ -61,7 +61,11 @@ int logger_init(const char *log_file, LogLevel level) {
     }
 
     if (log_file != NULL) {
-        g_log_file = xstrdup(log_file);
+        g_log_file = xstrdup_try(log_file);
+        if (!g_log_file) {
+            pthread_mutex_unlock(&g_log_mutex);
+            return -1;
+        }
         g_log_fp = fopen(log_file, "a");
         if (!g_log_fp) {
             /* 注意：这里不调用 LOG_*（会在持锁状态下递归取锁） */
@@ -85,7 +89,11 @@ int logger_reopen(const char *new_log_file) {
 
     if (new_log_file) {
         if (g_log_file) xfree(g_log_file);
-        g_log_file = xstrdup(new_log_file);
+        g_log_file = xstrdup_try(new_log_file);
+        if (!g_log_file) {
+            pthread_mutex_unlock(&g_log_mutex);
+            return -1;
+        }
     }
 
     int rc = 0;

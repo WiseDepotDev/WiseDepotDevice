@@ -59,7 +59,13 @@ int rfid_parse_response(const uint8_t *buffer, size_t len, rfid_response_t *out_
 
     out_response->data_len = data_len;
     if (data_len > 0) {
-        out_response->data = (uint8_t *)xmalloc(data_len);
+        out_response->data = (uint8_t *)xmalloc_try(data_len);
+        if (!out_response->data) {
+            /* P4-06：内存不足返回错误码，调用方负责释放/重试（不再退出进程） */
+            LOG_ERROR("分配 RFID 响应数据失败（内存不足）");
+            out_response->data_len = 0;
+            return -1;
+        }
         memcpy(out_response->data, &buffer[4], data_len);
     } else {
         out_response->data = NULL;

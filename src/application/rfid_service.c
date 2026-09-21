@@ -230,7 +230,15 @@ int rfid_service_run_cycle(const char *task_id) {
     // 1. Scan
     #define MAX_SCAN_TAGS 1000
     // Use xcalloc to ensure zero-initialization (critical for tid_len)
-    rfid_tag_t *tags = (rfid_tag_t *)xcalloc(MAX_SCAN_TAGS, sizeof(rfid_tag_t));
+    rfid_tag_t *tags = (rfid_tag_t *)xcalloc_try(MAX_SCAN_TAGS, sizeof(rfid_tag_t));
+    if (!tags) {
+        /* P4-06：内存不足时降级返回错误码，并把 busy 状态复位（不再 exit） */
+        LOG_ERROR("分配扫描缓冲区失败（内存不足），本次盘点中止");
+        pthread_mutex_lock(&service_mutex);
+        is_busy = false;
+        pthread_mutex_unlock(&service_mutex);
+        return -1;
+    }
     int count = rfid_inventory(tags, MAX_SCAN_TAGS);
     
     if (count < 0) {

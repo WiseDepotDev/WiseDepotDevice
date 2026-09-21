@@ -89,7 +89,10 @@ static const int mod_table[] = {0, 2, 1};
 
 char *base64_encode(const unsigned char *data, size_t input_length, size_t *output_length) {
     size_t out_len = 4 * ((input_length + 2) / 3);
-    char *encoded_data = (char *)xmalloc(out_len + 1);
+    char *encoded_data = (char *)xmalloc_try(out_len + 1);
+    if (!encoded_data) {
+        return NULL; /* P4-06：分配失败返回 NULL，由调用方处理 */
+    }
     if (encoded_data == NULL) return NULL;
 
     for (size_t i = 0, j = 0; i < input_length;) {

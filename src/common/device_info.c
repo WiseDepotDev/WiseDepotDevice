@@ -39,7 +39,7 @@ static char *read_file_line(const char *path) {
         char *p = strchr(buf, '\n');
         if (p) *p = '\0';
         fclose(fp);
-        return xstrdup(buf);
+        return xstrdup_try(buf);
     }
     
     fclose(fp);
@@ -56,7 +56,7 @@ static char *get_os_name(void) {
                 char *p = strchr(val, '\n');
                 if (p) *p = '\0';
                 fclose(fp);
-                return xstrdup(trim_quotes(val));
+                return xstrdup_try(trim_quotes(val));
             }
         }
         fclose(fp);
@@ -65,10 +65,10 @@ static char *get_os_name(void) {
     // Fallback to uname sysname
     struct utsname uts;
     if (uname(&uts) == 0) {
-        return xstrdup(uts.sysname);
+        return xstrdup_try(uts.sysname);
     }
     
-    return xstrdup("Linux (Unknown)");
+    return xstrdup_try("Linux (Unknown)");
 }
 
 static char *get_model_name(void) {
@@ -80,27 +80,44 @@ static char *get_model_name(void) {
     model = read_file_line("/sys/firmware/devicetree/base/model");
     if (model) return model;
     
-    return xstrdup("WiseDevice-Generic");
+    return xstrdup_try("WiseDevice-Generic");
 }
 
 const DeviceInfo *device_info_get(void) {
     if (g_info) return g_info;
     
-    g_info = (DeviceInfo *)xcalloc(1, sizeof(DeviceInfo));
+    g_info = (DeviceInfo *)xcalloc_try(1, sizeof(DeviceInfo));
+    if (!g_info) {
+        LOG_ERROR("分配设备信息结构失败（内存不足）");
+        return NULL;
+    }
     
     // 1. Get OS Name
     g_info->os_name = get_os_name();
+    if (!g_info->os_name) {
+        device_info_free();
+        return NULL;
+    }
     
     // 2. Get Kernel Version
     struct utsname uts;
     if (uname(&uts) == 0) {
-        g_info->kernel_ver = xstrdup(uts.release);
+        g_info->kernel_ver = xstrdup_try(uts.release);
     } else {
-        g_info->kernel_ver = xstrdup("unknown");
+        g_info->kernel_ver = xstrdup_try("unknown");
     }
     
+    if (!g_info->kernel_ver) {
+        device_info_free();
+        return NULL;
+    }
+
     // 3. Get Model
     g_info->model = get_model_name();
+    if (!g_info->model) {
+        device_info_free();
+        return NULL;
+    }
     
     // 4. Serial No (Optional, usually same as device_id in config, skip for now or implement if needed)
     // For now, we leave it NULL, application layer can fill it if needed

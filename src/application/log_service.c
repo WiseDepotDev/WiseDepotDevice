@@ -50,7 +50,13 @@ static void process_upload_queue(const Config *cfg) {
             fseek(fp, 0, SEEK_SET);
             
             if (fsize > 0) {
-                char *buffer = xmalloc(fsize + 1);
+                char *buffer = xmalloc_try(fsize + 1);
+                if (!buffer) {
+                    /* P4-06：内存不足时跳过该日志文件，不再退出进程 */
+                    LOG_ERROR("分配日志上传缓冲失败（内存不足），跳过该文件");
+                    fclose(fp);
+                    continue;
+                }
                 fread(buffer, 1, fsize, fp);
                 buffer[fsize] = '\0';
                 

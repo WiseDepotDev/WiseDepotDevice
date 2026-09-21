@@ -52,7 +52,12 @@ static HttpResponse *perform_request(const char *method, const char *url, const 
     }
 
     MemoryStruct chunk_data;
-    chunk_data.data = xmalloc(1);
+    chunk_data.data = xmalloc_try(1);
+    if (!chunk_data.data) {
+        LOG_ERROR("分配 HTTP 响应缓冲失败（内存不足）");
+        curl_easy_cleanup(curl);
+        return NULL;
+    }
     chunk_data.size = 0;
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
@@ -110,7 +115,14 @@ static HttpResponse *perform_request(const char *method, const char *url, const 
         LOG_ERROR("curl_easy_perform() failed: %s", curl_easy_strerror(res));
         xfree(chunk_data.data);
     } else {
-        response = (HttpResponse *)xmalloc(sizeof(HttpResponse));
+        response = (HttpResponse *)xmalloc_try(sizeof(HttpResponse));
+        if (!response) {
+            /* P4-06：内存不足返回 NULL（调用方按"无响应"处理），不再退出进程 */
+            LOG_ERROR("分配 HTTP 响应结构失败（内存不足）");
+            xfree(chunk_data.data);
+            curl_easy_cleanup(curl);
+            return NULL;
+        }
         long response_code;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
         response->status_code = (int)response_code;

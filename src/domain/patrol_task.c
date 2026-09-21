@@ -98,7 +98,11 @@ const char *patrol_task_status_to_string(PatrolTaskStatus status) {
  * 创建空的巡检任务
  */
 PatrolTask *patrol_task_create(const char *id, const char *name) {
-    PatrolTask *task = xcalloc(1, sizeof(PatrolTask));
+    PatrolTask *task = xcalloc_try(1, sizeof(PatrolTask));
+    if (!task) {
+        LOG_ERROR("创建巡检任务失败（内存不足）");
+        return NULL;
+    }
     
     if (id) {
         strncpy(task->id, id, PATROL_TASK_ID_MAX_LEN - 1);
@@ -359,7 +363,8 @@ static char *extract_json_string(const char *json, const char *key) {
     if (!end) return NULL;
     
     size_t len = end - start;
-    char *val = xmalloc(len + 1);
+    char *val = xmalloc_try(len + 1);
+    if (!val) return NULL; /* P4-06：分配失败返回 NULL */
     strncpy(val, start, len);
     val[len] = '\0';
     
@@ -434,7 +439,12 @@ PatrolTask *patrol_task_from_json(const char *json) {
         if (!action_end) break;
         
         size_t action_len = action_end - action_start + 1;
-        char *action_str = xmalloc(action_len + 1);
+        char *action_str = xmalloc_try(action_len + 1);
+        if (!action_str) {
+            LOG_ERROR("分配动作串失败（内存不足），放弃本次任务解析");
+            patrol_task_free(task);
+            return NULL;
+        }
         strncpy(action_str, action_start, action_len);
         action_str[action_len] = '\0';
         
@@ -468,7 +478,11 @@ char *patrol_task_to_json(const PatrolTask *task) {
     if (!task) return NULL;
 
     size_t buf_size = 4096;
-    char *json = xmalloc(buf_size);
+    char *json = xmalloc_try(buf_size);
+    if (!json) {
+        LOG_ERROR("分配任务 JSON 缓冲失败（内存不足）");
+        return NULL;
+    }
     size_t used = 0;
 
     /* P4-01：action_count 未校验时会越界读 actions[]（该数组上限为 PATROL_TASK_MAX_ACTIONS），

@@ -52,8 +52,17 @@ int scheduler_init(void) {
 int scheduler_add_task(const char *name, TaskCallback callback, void *context, unsigned int interval_ms) {
     if (!name || !callback || interval_ms == 0) return -1;
     
-    Task *new_task = (Task *)xcalloc(1, sizeof(Task));
-    new_task->name = xstrdup(name);
+    Task *new_task = (Task *)xcalloc_try(1, sizeof(Task));
+    if (!new_task) {
+        LOG_ERROR("分配调度任务失败（内存不足）");
+        return -1;
+    }
+    new_task->name = xstrdup_try(name);
+    if (!new_task->name) {
+        LOG_ERROR("分配调度任务名失败（内存不足）");
+        xfree(new_task);
+        return -1;
+    }
     new_task->callback = callback;
     new_task->context = context;
     new_task->interval_ms = interval_ms;

@@ -65,14 +65,22 @@ check: directories $(LIB_OBJS) $(TEST_OBJS)
 test: check
 
 # 内存安全检查 (P4-01：ASan + UBSan；需要 libasan/libubsan)
+# 注意：**必须自己展开 check 的配方**，不能写成 `check-asan: clean check`——
+# 那样 CFLAGS 会被 check 自己的 `check: CFLAGS = $(CFLAGS_DEBUG)` 覆盖，
+# 结果是"只有链接带 sanitizer、对象文件没有 instrument"（P4-06 实测发现：
+# 未被 instrument 时 __SANITIZE_ADDRESS__ 未定义，连测试里的 sanitizer 分支都会被漏掉）。
 check-asan: CFLAGS = $(CFLAGS_COMMON) -g -O0 -DDEBUG -fsanitize=address,undefined -fno-omit-frame-pointer
 check-asan: LDFLAGS += -fsanitize=address,undefined
-check-asan: clean check
+check-asan: clean directories $(LIB_OBJS) $(TEST_OBJS)
+	$(CC) $(CFLAGS) -o $(TEST_TARGET) $(TEST_OBJS) $(LIB_OBJS) $(LDFLAGS)
+	./$(TEST_TARGET)
 
 # 线程安全检查 (P4-03：TSan；需要 libtsan)
 check-tsan: CFLAGS = $(CFLAGS_COMMON) -g -O0 -DDEBUG -fsanitize=thread -fno-omit-frame-pointer
 check-tsan: LDFLAGS += -fsanitize=thread
-check-tsan: clean check
+check-tsan: clean directories $(LIB_OBJS) $(TEST_OBJS)
+	$(CC) $(CFLAGS) -o $(TEST_TARGET) $(TEST_OBJS) $(LIB_OBJS) $(LDFLAGS)
+	./$(TEST_TARGET)
 
 # MQTT 接收通道集成测试 (P4-05：连接真实 broker，需要 mosquitto；不挂在 check 里)
 check-mqtt: CFLAGS = $(CFLAGS_DEBUG)

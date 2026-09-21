@@ -107,7 +107,8 @@ static char *extract_json_string(const char *json, const char *key) {
     char *end = strchr(start, '"');
     if (!end) return NULL;
     size_t len = end - start;
-    char *val = xmalloc(len + 1);
+    char *val = xmalloc_try(len + 1);
+    if (!val) return NULL; /* P4-06：分配失败返回 NULL，由调用方处理 */
     strncpy(val, start, len);
     val[len] = '\0';
     return val;
@@ -142,7 +143,12 @@ void device_on_mqtt_message(const char *topic, const char *payload) {
     
     if (taskIdItem && taskTypeItem) {
         // Create PatrolTask
-        PatrolTask *task = (PatrolTask *)xcalloc(1, sizeof(PatrolTask));
+        PatrolTask *task = (PatrolTask *)xcalloc_try(1, sizeof(PatrolTask));
+        if (!task) {
+            LOG_ERROR("分配巡检任务失败（内存不足），丢弃该 MQTT 任务消息");
+            cJSON_Delete(json);
+            return;
+        }
         
         // Convert ID to string
         if (cJSON_IsNumber(taskIdItem)) {
@@ -160,7 +166,13 @@ void device_on_mqtt_message(const char *topic, const char *payload) {
             float distance = (float)targetDistanceItem->valuedouble;
 
             // 1. Populate points (legacy/future support)
-            task->points = (PatrolPoint *)xcalloc(1, sizeof(PatrolPoint));
+            task->points = (PatrolPoint *)xcalloc_try(1, sizeof(PatrolPoint));
+            if (!task->points) {
+                LOG_ERROR("分配巡检点失败（内存不足），丢弃该 MQTT 任务消息");
+                patrol_task_free(task);
+                cJSON_Delete(json);
+                return;
+            }
             task->point_count = 1;
             task->points[0].target_distance = distance;
             task->points[0].action = PATROL_ACTION_MOVE_FORWARD;
@@ -481,14 +493,23 @@ char *device_service_get_refresh_token(void) {
 void device_service_set_tokens(const char *access_token, const char *refresh_token) {
     if (access_token) {
         if (g_token) xfree(g_token);
-        g_token = xstrdup(access_token);
+        g_token = xstrdup_try(access_token);
+        if (!g_token) {
+            LOG_ERROR("保存访问令牌失败（内存不足），保持原令牌不变");
+            return;
+        }
         heartbeat_set_token(g_token);
         patrol_service_set_token(g_token);
     }
     
     if (refresh_token) {
+        char *copy = xstrdup_try(refresh_token);
+        if (!copy) {
+            LOG_ERROR("保存刷新令牌失败（内存不足），保持原令牌不变");
+            return;
+        }
         if (g_refresh_token) xfree(g_refresh_token);
-        g_refresh_token = xstrdup(refresh_token);
+        g_refresh_token = copy;
     }
 }
 

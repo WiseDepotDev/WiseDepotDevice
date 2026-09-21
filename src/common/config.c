@@ -57,25 +57,29 @@ static LogLevel parse_log_level(const char *level_str) {
     return DEFAULT_LOG_LEVEL;
 }
 
-static void config_init_defaults(void) {
-    if (g_config) return;
-    g_config = (Config *)xcalloc(1, sizeof(Config));
+static int config_init_defaults(void) {
+    if (g_config) return 0;
+    g_config = (Config *)xcalloc_try(1, sizeof(Config));
+    if (!g_config) {
+        LOG_ERROR("分配配置结构失败（内存不足）");
+        return -1;
+    }
     
-    g_config->server_url = xstrdup(DEFAULT_SERVER_URL);
+    g_config->server_url = xstrdup_try(DEFAULT_SERVER_URL);
     
     // Try to get hostname from environment variables for cross-platform compatibility
     char *env_hostname = getenv("HOSTNAME");
     if (!env_hostname) env_hostname = getenv("COMPUTERNAME");
     
     if (env_hostname) {
-        g_config->device_id = xstrdup(env_hostname);
+        g_config->device_id = xstrdup_try(env_hostname);
     } else {
         // Fallback: Try to get actual hostname
         char hostbuffer[256];
         if (gethostname(hostbuffer, sizeof(hostbuffer)) == 0) {
-            g_config->device_id = xstrdup(hostbuffer);
+            g_config->device_id = xstrdup_try(hostbuffer);
         } else {
-            g_config->device_id = xstrdup("unknown-device");
+            g_config->device_id = xstrdup_try("unknown-device");
         }
     }
     
@@ -83,11 +87,11 @@ static void config_init_defaults(void) {
     char *env_device_id = getenv("DEVICE_ID");
     if (env_device_id) {
         if (g_config->device_id) xfree(g_config->device_id);
-        g_config->device_id = xstrdup(env_device_id);
+        g_config->device_id = xstrdup_try(env_device_id);
     }
     
     g_config->heartbeat_interval = DEFAULT_HEARTBEAT_INTERVAL;
-    g_config->log_path = xstrdup(DEFAULT_LOG_PATH);
+    g_config->log_path = xstrdup_try(DEFAULT_LOG_PATH);
     g_config->log_level = DEFAULT_LOG_LEVEL;
     g_config->move_speed_cm_s = DEFAULT_MOVE_SPEED_CM_S;
     
@@ -109,38 +113,38 @@ static void config_init_defaults(void) {
     // g_config->motor_trim_d = -0.295f; // 右后
     
     // 动态配置默认值
-    g_config->api_base_url = xstrdup(DEFAULT_API_BASE_URL);
+    g_config->api_base_url = xstrdup_try(DEFAULT_API_BASE_URL);
 
     // RFID 默认配置
-    g_config->rfid_serial_port = xstrdup("/dev/ttyUSB0");
+    g_config->rfid_serial_port = xstrdup_try("/dev/ttyUSB0");
     g_config->rfid_baudrate = 57600;
     g_config->rfid_power = 26;
     g_config->task_poll_interval = DEFAULT_TASK_POLL_INTERVAL;
     g_config->network_timeout = DEFAULT_NETWORK_TIMEOUT;
-    g_config->log_upload_strategy = xstrdup("daily");
+    g_config->log_upload_strategy = xstrdup_try("daily");
     /* 加密密钥：仅从环境变量读取，源码内不得硬编码（STD-SEC-01）。
      * 该字段目前只被赋值与释放、尚无消费方；启用本地数据加密时必须由部署方
      * 通过 WISE_ENCRYPTION_KEY 注入（建议 0600 配置文件或 systemd 环境变量）。 */
     char *env_encryption_key = getenv("WISE_ENCRYPTION_KEY");
-    g_config->encryption_key = env_encryption_key ? xstrdup(env_encryption_key) : NULL;
+    g_config->encryption_key = env_encryption_key ? xstrdup_try(env_encryption_key) : NULL;
     if (!g_config->encryption_key) {
         LOG_WARN("WISE_ENCRYPTION_KEY not set; local data encryption is unavailable");
     }
-    g_config->version = xstrdup("0.2.0");
+    g_config->version = xstrdup_try("0.2.0");
 
     /* MQTT：地址 / 账号 / 口令一律只从环境变量读取，源码内不得出现真实地址与口令，
      * 也不再保留"硬编码兜底默认值"——缺失时保持 NULL，由 mqtt_client_init 明确报错。 */
     char *env_mqtt_host = getenv("MQTT_HOST");
-    g_config->mqtt_host = env_mqtt_host ? xstrdup(env_mqtt_host) : NULL;
+    g_config->mqtt_host = env_mqtt_host ? xstrdup_try(env_mqtt_host) : NULL;
 
     char *env_mqtt_port = getenv("MQTT_PORT");
     g_config->mqtt_port = env_mqtt_port ? atoi(env_mqtt_port) : 1883;
 
     char *env_mqtt_user = getenv("MQTT_USERNAME");
-    g_config->mqtt_username = env_mqtt_user ? xstrdup(env_mqtt_user) : NULL;
+    g_config->mqtt_username = env_mqtt_user ? xstrdup_try(env_mqtt_user) : NULL;
 
     char *env_mqtt_pass = getenv("MQTT_PASSWORD");
-    g_config->mqtt_password = env_mqtt_pass ? xstrdup(env_mqtt_pass) : NULL;
+    g_config->mqtt_password = env_mqtt_pass ? xstrdup_try(env_mqtt_pass) : NULL;
 
     if (!g_config->mqtt_host) {
         LOG_WARN("MQTT_HOST not set; MQTT disabled, device will rely on HTTP polling");
@@ -148,6 +152,15 @@ static void config_init_defaults(void) {
     if (g_config->mqtt_host && !g_config->mqtt_password) {
         LOG_WARN("MQTT_PASSWORD not set; connecting to MQTT broker without credentials");
     }
+
+    /* P4-06：内存不足时不再 exit；统一校验必需字段并把错误码交给调用方（可回滚） */
+    if (!g_config->server_url || !g_config->device_id || !g_config->log_path ||
+        !g_config->api_base_url || !g_config->rfid_serial_port ||
+        !g_config->log_upload_strategy || !g_config->version) {
+        LOG_ERROR("初始化默认配置失败（内存不足）");
+        return -1;
+    }
+    return 0;
 }
 
 /* 远端配置拉取需要 HTTP 能力；按 P4-08 规划，该能力最终应迁到 application 层，
@@ -155,8 +168,8 @@ static void config_init_defaults(void) {
 #include "infrastructure/http_client.h"
 
 int config_fetch_remote(void) {
-    if (!g_config) {
-        config_init_defaults();
+    if (!g_config && config_init_defaults() != 0) {
+        return -1;
     }
     if (!g_config->server_url || !g_config->device_id) {
         LOG_WARN("Skip remote config: server_url or device_id missing");
@@ -187,7 +200,9 @@ int config_fetch_remote(void) {
 }
 
 int config_load(const char *config_file) {
-    config_init_defaults();
+    if (config_init_defaults() != 0) {
+        return -1;
+    }
 
     /* 优先级（与 config.h 的文档一致）：默认值 < 配置文件 < 环境变量。
      * P4-04：此处把「配置文件」放在「环境变量」之前解析——此前顺序相反，
@@ -208,15 +223,15 @@ int config_load(const char *config_file) {
                     
                     if (strcmp(key, "server_url") == 0) {
                         if (g_config->server_url) xfree(g_config->server_url);
-                        g_config->server_url = xstrdup(val);
+                        g_config->server_url = xstrdup_try(val);
                     } else if (strcmp(key, "device_id") == 0) {
                         if (g_config->device_id) xfree(g_config->device_id);
-                        g_config->device_id = xstrdup(val);
+                        g_config->device_id = xstrdup_try(val);
                     } else if (strcmp(key, "heartbeat_interval") == 0) {
                         g_config->heartbeat_interval = atoi(val);
                     } else if (strcmp(key, "log_path") == 0) {
                         if (g_config->log_path) xfree(g_config->log_path);
-                        g_config->log_path = xstrdup(val);
+                        g_config->log_path = xstrdup_try(val);
                     } else if (strcmp(key, "log_level") == 0) {
                         g_config->log_level = parse_log_level(val);
                     } else if (strcmp(key, "move_speed_cm_s") == 0) {
@@ -232,7 +247,7 @@ int config_load(const char *config_file) {
                     } else if (strcmp(key, "signature_secret") == 0) {
                         /* P4-04：请求签名密钥（单一来源之一；环境变量优先） */
                         if (g_config->signature_secret) xfree(g_config->signature_secret);
-                        g_config->signature_secret = xstrdup(val);
+                        g_config->signature_secret = xstrdup_try(val);
                     }
                 }
             }
@@ -244,13 +259,13 @@ int config_load(const char *config_file) {
     char *env_server = getenv("WISE_SERVER_URL");
     if (env_server) {
         xfree(g_config->server_url);
-        g_config->server_url = xstrdup(env_server);
+        g_config->server_url = xstrdup_try(env_server);
     }
 
     char *env_device = getenv("WISE_DEVICE_ID");
     if (env_device) {
         xfree(g_config->device_id);
-        g_config->device_id = xstrdup(env_device);
+        g_config->device_id = xstrdup_try(env_device);
     }
 
     /* 心跳间隔同样支持环境变量覆盖（与 WISE_SERVER_URL / WISE_DEVICE_ID 一致），
@@ -270,10 +285,16 @@ int config_load(const char *config_file) {
     char *env_signature = getenv("WISE_API_SIGNATURE_SECRET");
     if (env_signature) {
         if (g_config->signature_secret) xfree(g_config->signature_secret);
-        g_config->signature_secret = xstrdup(env_signature);
+        g_config->signature_secret = xstrdup_try(env_signature);
     }
     if (!g_config->signature_secret) {
         LOG_WARN("WISE_API_SIGNATURE_SECRET not set; signed API requests are unavailable");
+    }
+
+    /* P4-06：文件解析与环境覆盖中的 xstrdup_try 失败会留下 NULL 字段，这里统一兜底 */
+    if (!g_config->server_url || !g_config->device_id) {
+        LOG_ERROR("配置加载失败：必需字段缺失（内存不足？）");
+        return -1;
     }
 
     return 0;
@@ -284,7 +305,9 @@ const char *config_signature_secret(void) {
 }
 
 int config_update_from_json(const char *json_str) {
-    if (!g_config) config_init_defaults();
+    if (!g_config && config_init_defaults() != 0) {
+        return -1;
+    }
     
     cJSON *root = cJSON_Parse(json_str);
     if (!root) {
@@ -300,7 +323,7 @@ int config_update_from_json(const char *json_str) {
     item = cJSON_GetObjectItem(root, "apiBaseUrl");
     if (cJSON_IsString(item)) {
         if (g_config->api_base_url) xfree(g_config->api_base_url);
-        g_config->api_base_url = xstrdup(item->valuestring);
+        g_config->api_base_url = xstrdup_try(item->valuestring);
     }
     
     item = cJSON_GetObjectItem(root, "taskPollInterval");
@@ -309,7 +332,7 @@ int config_update_from_json(const char *json_str) {
     item = cJSON_GetObjectItem(root, "logUploadStrategy");
     if (cJSON_IsString(item)) {
         if (g_config->log_upload_strategy) xfree(g_config->log_upload_strategy);
-        g_config->log_upload_strategy = xstrdup(item->valuestring);
+        g_config->log_upload_strategy = xstrdup_try(item->valuestring);
     }
     
     item = cJSON_GetObjectItem(root, "networkTimeout");
@@ -333,9 +356,14 @@ int config_update_from_json(const char *json_str) {
     item = cJSON_GetObjectItem(root, "version");
     if (cJSON_IsString(item)) {
         if (g_config->version) xfree(g_config->version);
-        g_config->version = xstrdup(item->valuestring);
+        g_config->version = xstrdup_try(item->valuestring);
     }
 
+    if (!g_config->api_base_url || !g_config->log_upload_strategy || !g_config->version) {
+        LOG_ERROR("配置更新失败：必需字段缺失（内存不足？）");
+        cJSON_Delete(root);
+        return -1;
+    }
     LOG_INFO("Configuration updated to version %s", g_config->version);
     
     cJSON_Delete(root);
@@ -420,7 +448,7 @@ int config_secure_delete(const char *file_path) {
 void config_set_server_url(const char *url) {
     if (!g_config || !url) return;
     if (g_config->server_url) xfree(g_config->server_url);
-    g_config->server_url = xstrdup(url);
+    g_config->server_url = xstrdup_try(url);
     LOG_INFO("Config server URL updated to: %s", url);
 }
 

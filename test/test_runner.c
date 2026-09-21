@@ -3,6 +3,8 @@
 
 /* Test Prototypes */
 extern void test_xmalloc(void);
+extern void test_xmalloc_try_returns_null_on_failure(void);
+extern void test_business_path_degrades_on_oom(void);
 extern void test_config(void);
 extern void test_config_signature_secret(void);
 extern void test_config_env_overrides_file(void);
@@ -41,6 +43,8 @@ int main(void) {
     UNITY_BEGIN();
     
     RUN_TEST(test_xmalloc);
+    RUN_TEST(test_xmalloc_try_returns_null_on_failure);
+    RUN_TEST(test_business_path_degrades_on_oom);
     RUN_TEST(test_config);
     RUN_TEST(test_config_signature_secret);
     RUN_TEST(test_config_env_overrides_file);

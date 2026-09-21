@@ -25,12 +25,20 @@ static char *g_hb_token = NULL;
 /* 签名密钥：统一走 config_signature_secret()（环境变量 / 配置文件注入，源码内无默认值，P4-04） */
 
 void heartbeat_set_token(const char *token) {
+    if (token) {
+        /* P4-06：先复制成功再替换，失败时保持原令牌不变 */
+        char *copy = xstrdup_try(token);
+        if (!copy) {
+            LOG_ERROR("保存心跳令牌失败（内存不足），保持原令牌不变");
+            return;
+        }
+        if (g_hb_token) xfree(g_hb_token);
+        g_hb_token = copy;
+        return;
+    }
     if (g_hb_token) {
         xfree(g_hb_token);
         g_hb_token = NULL;
-    }
-    if (token) {
-        g_hb_token = xstrdup(token);
     }
 }
 

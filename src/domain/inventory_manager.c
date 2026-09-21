@@ -26,7 +26,13 @@ static size_t product_count = 0;
 void inventory_mgr_init(void) {
     /* P4-01：先释放上一份，重复 init 不再泄漏（此前 1000 条约 216 KB 每次都泄漏） */
     inventory_mgr_free();
-    expected_products = (expected_product_t *)xmalloc(sizeof(expected_product_t) * MAX_EXPECTED_PRODUCTS);
+    expected_products = (expected_product_t *)xmalloc_try(sizeof(expected_product_t) * MAX_EXPECTED_PRODUCTS);
+    if (!expected_products) {
+        /* P4-06：内存不足不退出进程；后续加载/比对会各自返回错误码 */
+        LOG_ERROR("分配预期库存表失败（内存不足），盘点功能不可用");
+        product_count = 0;
+        return;
+    }
     product_count = 0;
 }
 
@@ -44,7 +50,8 @@ int inventory_load_expected(const char *json_str) {
     cJSON *item = NULL;
     int rc;
 
-    if (json_str == NULL) {
+    if (json_str == NULL || expected_products == NULL) {
+        LOG_WARN("Expected inventory: manager not initialized or out of memory");
         return -1;
     }
 
@@ -100,7 +107,11 @@ int inventory_load_expected(const char *json_str) {
 }
 
 inventory_report_t *inventory_process_scan(const rfid_tag_t *scanned_tags, size_t count) {
-    inventory_report_t *report = (inventory_report_t *)xcalloc(1, sizeof(inventory_report_t));
+    inventory_report_t *report = (inventory_report_t *)xcalloc_try(1, sizeof(inventory_report_t));
+    if (!report) {
+        LOG_ERROR("分配盘点报告失败（内存不足）");
+        return NULL;
+    }
     
     report->total_scanned = (int)count;
     report->total_expected = 0;
@@ -110,7 +121,12 @@ inventory_report_t *inventory_process_scan(const rfid_tag_t *scanned_tags, size_
     }
     
     // Allocate items (scanned only)
-    report->items = (inventory_item_t *)xcalloc(count > 0 ? count : 1, sizeof(inventory_item_t));
+    report->items = (inventory_item_t *)xcalloc_try(count > 0 ? count : 1, sizeof(inventory_item_t));
+    if (!report->items) {
+        LOG_ERROR("分配盘点明细失败（内存不足）");
+        xfree(report);
+        return NULL;
+    }
     report->item_count = 0;
     
     // Process Scanned Tags
@@ -143,7 +159,13 @@ inventory_report_t *inventory_process_scan(const rfid_tag_t *scanned_tags, size_
     // Calculate Differences
     // 预留空间：预期产品差异 + 未录入系统的RFID
     size_t max_diffs = product_count + count;
-    report->differences = (inventory_difference_t *)xcalloc(max_diffs > 0 ? max_diffs : 1, sizeof(inventory_difference_t));
+    report->differences = (inventory_difference_t *)xcalloc_try(max_diffs > 0 ? max_diffs : 1, sizeof(inventory_difference_t));
+    if (!report->differences) {
+        LOG_ERROR("分配盘点差异表失败（内存不足）");
+        xfree(report->items);
+        xfree(report);
+        return NULL;
+    }
     report->diff_count = 0;
     
     // 1. 处理预期产品的差异
@@ -290,7 +312,12 @@ char *inventory_cache_load(void) {
         return NULL;
     }
     
-    char *content = (char *)xmalloc(fsize + 1);
+    char *content = (char *)xmalloc_try(fsize + 1);
+    if (!content) {
+        LOG_ERROR("分配缓存内容缓冲失败（内存不足）");
+        fclose(f);
+        return NULL;
+    }
     fread(content, 1, fsize, f);
     content[fsize] = '\0';
     
