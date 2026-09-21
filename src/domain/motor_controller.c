@@ -141,8 +141,8 @@ wd_error_t motor_controller_init(const motor_controller_config_t *config) {
                 LOG_WARN("Failed to set GPIO direction for motor %d", i);
             }
         }
-        g_motor_ctrl.gpio_fds[i * 2] = -1;
-        g_motor_ctrl.gpio_fds[i * 2 + 1] = -1;
+        g_motor_ctrl.gpio_fds[(size_t)i * 2] = -1;
+        g_motor_ctrl.gpio_fds[(size_t)i * 2 + 1] = -1;
     }
     
     g_motor_ctrl.initialized = true;

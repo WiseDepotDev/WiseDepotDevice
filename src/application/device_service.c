@@ -140,10 +140,22 @@ static void heartbeat_wrapper(void *ctx) {
     heartbeat_task_execute(NULL);
 }
 
+/* P4-14：异步信号安全的关闭路径。
+ * 原实现在 handler 里直接调 logger_log / scheduler_stop（可能死锁或重入，
+ * clang-tidy bugprone-signal-handler 也会报）。现在 handler 只置标志，
+ * 日志与 scheduler_stop 都由调度器里的 ShutdownWatcher 在**普通线程上下文**执行。 */
+static volatile sig_atomic_t g_shutdown_signal = 0;
+
 static void handle_signal(int sig) {
     if (sig == SIGINT || sig == SIGTERM) {
-        LOG_INFO("Received signal %d, stopping...", sig);
+        g_shutdown_signal = (sig_atomic_t)sig;
         g_running = 0;
+    }
+}
+
+static void shutdown_watcher(void *ctx) {
+    (void)ctx;
+    if (g_running == 0) {
         scheduler_stop();
     }
 }
@@ -234,6 +246,9 @@ void device_run(void) {
     
     // System Maintenance (1s)
     scheduler_add_task("SystemMaintenance", device_service_maintenance, NULL, 1000);
+
+    /* 关闭监视（100ms）：handler 只置 g_running=0，这里在普通上下文停调度器 */
+    scheduler_add_task("ShutdownWatcher", shutdown_watcher, NULL, 100);
 
     LOG_INFO("Device service running...");
 

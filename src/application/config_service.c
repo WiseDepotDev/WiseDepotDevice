@@ -70,7 +70,10 @@ void config_fetch_task(void *ctx) {
     snprintf(timestamp, sizeof(timestamp), "%ld", (long)time(NULL)); 
     
     char nonce[20];
-    snprintf(nonce, sizeof(nonce), "%d", rand());
+    if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
+        LOG_ERROR("无法获取随机 nonce，配置拉取中止");
+        return;
+    }
     
     char query_string[1024];
     snprintf(query_string, sizeof(query_string), "deviceId=%s&version=%s", cfg->device_id, cfg->version);

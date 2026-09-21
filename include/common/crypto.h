@@ -12,16 +12,17 @@
 #include <stddef.h>
 
 /**
- * 计算 HMAC-SHA256
- * 使用 Linux AF_ALG 接口 (无需第三方库)
+ * @brief 生成密码学安全的随机十六进制串（用于请求签名 nonce）。
  *
- * @param key 密钥
- * @param key_len 密钥长度
- * @param data 数据
- * @param data_len 数据长度
- * @param output 输出缓冲区 (至少 32 字节)
- * @return 0 成功，-1 失败
+ * 数据源：getrandom(2) → /dev/urandom；两者都不可用时返回 0，调用方必须处理。
+ * **不得**退化成 rand()——nonce 可预测会让签名可被重放（P4-14 clang-tidy cert-msc30-c）。
+ *
+ * @param out 输出缓冲
+ * @param out_len 缓冲长度（写入 out_len-1 个十六进制字符 + NUL）
+ * @return 写入的字符数；失败返回 0
  */
+size_t wd_random_hex(char *out, size_t out_len);
+
 /**
  * @brief 计算 HMAC-SHA256 摘要
  * @param key 参数

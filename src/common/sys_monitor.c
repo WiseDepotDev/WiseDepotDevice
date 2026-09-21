@@ -102,5 +102,5 @@ double sys_monitor_get_mem_usage(void) {
         return 0.0; 
     }
     
-    return (double)(total - available) * 100.0 / total;
+    return (double)(total - available) * 100.0 / total; // NOLINT(clang-analyzer-optin.taint.TaintedDiv)：第 98 行已判 total == 0
 }

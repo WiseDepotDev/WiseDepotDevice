@@ -31,8 +31,9 @@ static int sock_fd = -1;
 static struct sockaddr_in broadcast_addr;
 
 wd_error_t server_discovery_init(void) {
-    // 创建 UDP socket
-    if ((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+    /* 创建 UDP socket：先赋值再判断（clang-tidy bugprone-assignment-in-if-condition） */
+    sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock_fd < 0) {
         LOG_ERROR("Failed to create socket: %s", strerror(errno));
         return WD_ERR_IO;
     }

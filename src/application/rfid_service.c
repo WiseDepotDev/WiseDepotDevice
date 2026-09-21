@@ -95,7 +95,10 @@ static int fetch_expected_inventory(void) {
     snprintf(timestamp, sizeof(timestamp), "%ld", (long)time(NULL)); 
     
     char nonce[32];
-    snprintf(nonce, sizeof(nonce), "%s%d", timestamp, rand());
+    if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
+        LOG_ERROR("无法获取随机 nonce，拉取预期库存中止");
+        return WD_ERR_GENERAL;
+    }
     
     const char *uri_path = "/api/inventories/all";
     

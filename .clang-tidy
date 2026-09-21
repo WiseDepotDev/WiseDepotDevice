@@ -1,0 +1,31 @@
+# WiseDepot 设备端静态检查（P4-14）
+#
+# 取向：只开"能明确指出缺陷"的检查集，不追求开关数量。
+# - clang-analyzer-*：路径敏感分析（空指针、资源泄漏、越界）
+# - bugprone-*：易错写法（含 use-after-move/整数截断等）
+# - cert-*：C 语言安全编码规则子集
+# - 关掉与既有风格冲突或误报率高的检查（见下）
+#
+# 门禁语义：`make lint` **只阻断 error**（编译/配置错误），warning 计入报告不回写代码——
+# 上一次真实统计见 docs/standards/基线记录.md §49。
+Checks: >
+  clang-analyzer-*,
+  bugprone-*,
+  cert-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-reserved-identifier,
+  -bugprone-narrowing-conversions,
+  -cert-err33-c,
+  -cert-msc32-c,
+  -cert-msc51-cpp,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -bugprone-macro-parentheses
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*/(include|src)/.*'
+FormatStyle: file
+CheckOptions:
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case

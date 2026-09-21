@@ -120,7 +120,7 @@ void scheduler_run(unsigned int resolution_ms) {
         // Use nanosleep for better precision than sleep()
         struct timespec req, rem;
         req.tv_sec = resolution_ms / 1000;
-        req.tv_nsec = (resolution_ms % 1000) * 1000000;
+        req.tv_nsec = (long)(resolution_ms % 1000) * 1000000L;
         
         while (nanosleep(&req, &rem) == -1) {
             if (errno == EINTR) {

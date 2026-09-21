@@ -76,7 +76,10 @@ patrol_task_t *patrol_service_fetch_task(void) {
         snprintf(timestamp, sizeof(timestamp), "%ld", (long)time(NULL));
         
         char nonce[20];
-        snprintf(nonce, sizeof(nonce), "%d", rand());
+        if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
+            LOG_ERROR("无法获取随机 nonce，请求中止");
+            return NULL;
+        }
         
         char query_string[1024];
         snprintf(query_string, sizeof(query_string), "nonce=%s&status=pending&timestamp=%s", 
@@ -211,7 +214,10 @@ wd_error_t patrol_service_report_result(const patrol_task_t *task) {
         snprintf(timestamp, sizeof(timestamp), "%ld", (long)time(NULL));
         
         char nonce[20];
-        snprintf(nonce, sizeof(nonce), "%d", rand());
+        if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
+            LOG_ERROR("无法获取随机 nonce，请求中止");
+            return WD_ERR_GENERAL;
+        }
         
         char query_string[1024];
         snprintf(query_string, sizeof(query_string), "nonce=%s&status=%s&timestamp=%s", 

@@ -86,7 +86,10 @@ void heartbeat_task_execute(void *ctx) {
         snprintf(timestamp, sizeof(timestamp), "%ld", (long)time(NULL));
         
         char nonce[32];
-        snprintf(nonce, sizeof(nonce), "%s%d", timestamp, rand());
+        if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
+        LOG_ERROR("无法获取随机 nonce，心跳中止");
+        return;
+    }
         
         // deviceCode is in body, not query param, so don't include in signature
         char query_string[1024];

@@ -7,6 +7,11 @@
  */
 
 #include "common/crypto.h"
+#include <fcntl.h>
+#include <unistd.h>
+#if defined(__linux__)
+#include <sys/random.h>
+#endif
 #include "common/xmalloc.h"
 #include "common/logger.h"
 #include "common/wd_error.h"
@@ -116,4 +121,58 @@ char *base64_encode(const unsigned char *data, size_t input_length, size_t *outp
     if (output_length) *output_length = out_len;
 
     return encoded_data;
+}
+
+/* P4-14：nonce 必须不可预测。原来是 rand()（未播种、可预测），
+ * 这里改用 getrandom(2)，不可用时回退 /dev/urandom；都失败就返回 0 让调用方中止。 */
+static int wd_fill_random(unsigned char *buf, size_t len) {
+#if defined(__linux__)
+    if (getrandom(buf, len, 0) == (ssize_t)len) {
+        return 1;
+    }
+#endif
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+    size_t off = 0;
+    while (off < len) {
+        ssize_t n = read(fd, buf + off, len - off);
+        if (n <= 0) {
+            close(fd);
+            return 0;
+        }
+        off += (size_t)n;
+    }
+    close(fd);
+    return 1;
+}
+
+size_t wd_random_hex(char *out, size_t out_len) {
+    static const char hex[] = "0123456789abcdef";
+    if (!out || out_len < 2) {
+        return 0;
+    }
+
+    size_t chars = out_len - 1;
+    if (chars > 64) {
+        chars = 64;
+    }
+    unsigned char raw[32];
+    size_t bytes = (chars + 1) / 2;
+    if (bytes > sizeof(raw)) {
+        bytes = sizeof(raw);
+    }
+    if (!wd_fill_random(raw, bytes)) {
+        out[0] = '\0';
+        return 0;
+    }
+
+    for (size_t i = 0; i < chars; i++) {
+        unsigned char nibble = (i % 2 == 0) ? (unsigned char)(raw[i / 2] >> 4)
+                                            : (unsigned char)(raw[i / 2] & 0x0F);
+        out[i] = hex[nibble];
+    }
+    out[chars] = '\0';
+    return chars;
 }

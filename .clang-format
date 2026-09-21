@@ -1,0 +1,28 @@
+# WiseDepot 设备端代码风格（P4-14）
+#
+# 取向：**对齐既有代码的实际风格**，只消除真正的噪声（行尾空格、错位缩进），
+# 不制造"全仓库换风格"的巨型 diff。因此：
+# - 4 空格缩进（设备端全部源码是 4 空格，非 tab）
+# - 大括号附着（`void f(void) {`），与既有写法一致
+# - 允许无 else 的短语句单行（`if (p) xfree(p);`）
+# - 100 列软上限；指针靠右（`char *p`）
+---
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: true
+PointerAlignment: Right
+DerivePointerAlignment: false
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+SpaceBeforeParens: ControlStatements
+IncludeBlocks: Preserve
+SortIncludes: Never
+MaxEmptyLinesToKeep: 2

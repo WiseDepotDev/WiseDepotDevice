@@ -108,7 +108,10 @@ int patrol_action_callback(const patrol_task_t *task, uint8_t action_index, void
                 char timestamp[20];
                 snprintf(timestamp, sizeof(timestamp), "%ld", (long)time(NULL));
                 char nonce[32];
-                snprintf(nonce, sizeof(nonce), "%s%d", timestamp, rand());
+                if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
+        LOG_ERROR("无法获取随机 nonce，巡检动作中止");
+        return WD_ERR_GENERAL;
+    }
                 char uri_path[256];
                 snprintf(uri_path, sizeof(uri_path), "/api/inspection/task/%s/progress", task->id);
                 char query_string[256];

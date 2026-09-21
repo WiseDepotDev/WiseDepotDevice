@@ -126,7 +126,10 @@ wd_error_t device_register(void) {
     
     char nonce[32];
     // Use timestamp + rand to ensure uniqueness even if rand() collides
-    snprintf(nonce, sizeof(nonce), "%s%d", timestamp, rand());
+    if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
+        LOG_ERROR("无法获取随机 nonce，注册请求中止");
+        return WD_ERR_GENERAL;
+    }
     
     char query_string[1024];
     snprintf(query_string, sizeof(query_string), "nonce=%s&timestamp=%s", nonce, timestamp);

@@ -248,7 +248,9 @@ char *inventory_report_to_json(const inventory_report_t *report, const char *tas
         cJSON_AddStringToObject(item, "epc", report->items[i].epc);
         cJSON_AddStringToObject(item, "tid", report->items[i].tid);
         
-        const char *status_str = "unknown";
+        /* 初值 "unknown" 是**故意的**防御：switch 目前覆盖全部枚举值，但新增枚举时
+         * 不应输出未初始化的字符串（clang-analyzer-deadcode.DeadStores 误报）。 */
+        const char *status_str = "unknown"; // NOLINT(clang-analyzer-deadcode.DeadStores)
         switch (report->items[i].status) {
             case TAG_STATUS_NORMAL: status_str = "normal"; break;
             case TAG_STATUS_SURPLUS: status_str = "surplus"; break;

@@ -141,7 +141,12 @@ static int config_init_defaults(void) {
     g_config->mqtt_host = env_mqtt_host ? xstrdup_try(env_mqtt_host) : NULL;
 
     char *env_mqtt_port = getenv("MQTT_PORT");
-    g_config->mqtt_port = env_mqtt_port ? atoi(env_mqtt_port) : 1883;
+    g_config->mqtt_port = env_mqtt_port ? atoi(env_mqtt_port) : 1883; // NOLINT(cert-err34-c)：范围校验在下一行
+    if (g_config->mqtt_port <= 0 || g_config->mqtt_port > 65535) {
+        /* P4-14：原先 atoi 解析失败会静默变成 0，表现为"MQTT 莫名不连"；这里显式告警并回退 */
+        LOG_WARN("MQTT_PORT 非法（%d），回退到 1883", g_config->mqtt_port);
+        g_config->mqtt_port = 1883;
+    }
 
     char *env_mqtt_user = getenv("MQTT_USERNAME");
     g_config->mqtt_username = env_mqtt_user ? xstrdup_try(env_mqtt_user) : NULL;

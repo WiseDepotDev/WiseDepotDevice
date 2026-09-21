@@ -107,7 +107,7 @@ void log_upload_task(void *ctx) {
     // Check if current log file needs rotation
     struct stat st;
     if (stat(cfg->log_path, &st) == 0) {
-        if (st.st_size > LOG_MAX_SIZE) {
+        if ((long long)st.st_size > (long long)LOG_MAX_SIZE) {
             // Rotate
             char new_name[256];
             snprintf(new_name, sizeof(new_name), "%s%ld.log", UPLOAD_QUEUE_PREFIX, (long)time(NULL));

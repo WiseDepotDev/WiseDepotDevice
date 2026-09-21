@@ -1,9 +1,23 @@
 # Makefile for WiseDepot Device Client
 # 遵循 POSIX.1-2017 标准，仅依赖 Linux 系统调用与标准库
+#
+# 可移植性（P4-14）：
+#   交叉编译   make release CROSS_COMPILE=aarch64-linux-gnu-
+#   换编译器   make release CC=clang
+#   换 pkg-config  make PKG_CONFIG=/usr/bin/pkg-config
+# 依赖缺失时不再报一堆 "No such file or directory"，而是给出可操作的安装提示（见 check-deps）。
 
-CC = gcc
-CFLAGS_COMMON = -Wall -Wextra -Werror -std=c11 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -Iinclude $(shell pkg-config --cflags libcjson libcurl openssl)
-LDFLAGS = $(shell pkg-config --libs libcjson libcurl openssl) -lpthread -lpaho-mqtt3a
+CROSS_COMPILE ?=
+CC = $(CROSS_COMPILE)gcc
+PKG_CONFIG ?= pkg-config
+
+# 依赖清单（pkg-config 名 → 发行版包名提示）
+PKGS = libcjson libcurl openssl
+PKG_HINT_dnf = sudo dnf install -y cjson-devel libcurl-devel openssl-devel paho-c-devel
+PKG_HINT_apt = sudo apt-get install -y libcjson-dev libcurl4-openssl-dev libssl-dev libpaho-mqtt-dev
+
+CFLAGS_COMMON = -Wall -Wextra -Werror -std=c11 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -Iinclude $(shell $(PKG_CONFIG) --cflags $(PKGS) 2>/dev/null)
+LDFLAGS = $(shell $(PKG_CONFIG) --libs $(PKGS) 2>/dev/null) -lpthread -lpaho-mqtt3a
 
 # 调试与发布模式标志
 CFLAGS_DEBUG = $(CFLAGS_COMMON) -g -O0 -DDEBUG
@@ -36,9 +50,36 @@ TEST_TARGET = bin/test_runner
 # 必须在"目标特定变量"生效后再展开，因此开启二次展开（下面写成 $$(...)）。
 .SECONDEXPANSION:
 
-.PHONY: all debug release clean check test check-all check-asan check-tsan check-mqtt check-layers check-hygiene directories coverage install uninstall
+.PHONY: all debug release clean check test check-all check-asan check-tsan check-mqtt check-layers check-hygiene check-deps directories coverage install uninstall format format-check lint help
 
 all: debug
+
+# ---- 依赖自检（P4-14）：缺什么、装什么、装完怎么验证，一次说清 ----
+check-deps:
+	@miss=0; \
+	if ! command -v $(PKG_CONFIG) >/dev/null 2>&1; then \
+	  echo "缺失: pkg-config"; \
+	  echo "  Fedora: sudo dnf install -y pkgconf-pkg-config"; \
+	  echo "  Debian: sudo apt-get install -y pkg-config"; \
+	  miss=1; \
+	fi; \
+	for pkg in $(PKGS); do \
+	  if ! $(PKG_CONFIG) --exists $$pkg 2>/dev/null; then \
+	    echo "缺失: $$pkg（pkg-config 名）"; miss=1; \
+	  fi; \
+	done; \
+	if ! echo 'int main(void){return 0;}' | $(CC) -x c - -o /dev/null -lpaho-mqtt3a >/dev/null 2>&1; then \
+	  echo "缺失: libpaho-mqtt3a（paho MQTT C 客户端）"; miss=1; \
+	fi; \
+	if [ $$miss -eq 1 ]; then \
+	  echo ""; \
+	  echo "安装提示（本机实测可用）："; \
+	  echo "  $(PKG_HINT_dnf)"; \
+	  echo "  $(PKG_HINT_apt)"; \
+	  echo "装完用 make check-deps 复验。"; \
+	  exit 1; \
+	fi; \
+	echo "依赖自检 OK: $(PKGS) + libpaho-mqtt3a 均可用（pkg-config: $(PKG_CONFIG)，CC: $(CC)）"
 
 # 调试构建
 debug: CFLAGS = $(CFLAGS_DEBUG)
@@ -149,6 +190,50 @@ coverage: directories $$(LIB_OBJS) $$(TEST_OBJS)
 # 清理
 clean:
 	rm -rf bin $(OBJDIRS) coverage *.gcno *.gcda
+
+# ---- 代码风格与静态检查（P4-14）----
+CLANG_FORMAT ?= clang-format
+CLANG_TIDY ?= clang-tidy
+FORMAT_DIRS = src include test
+FORMAT_FILES = $(shell find $(FORMAT_DIRS) -name '*.c' -o -name '*.h' 2>/dev/null)
+# clang-tidy 需要编译数据库；没有 compile_commands.json 时用 -Iinclude 兜底并显式传编译选项
+TIDY_FLAGS = -std=c11 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -Iinclude $(shell $(PKG_CONFIG) --cflags $(PKGS) 2>/dev/null)
+
+format:
+	@command -v $(CLANG_FORMAT) >/dev/null 2>&1 || { \
+	  echo "缺失: $(CLANG_FORMAT)"; \
+	  echo "  Fedora: sudo dnf install -y clang-tools-extra"; \
+	  echo "  Debian: sudo apt-get install -y clang-format"; exit 1; }
+	$(CLANG_FORMAT) -i $(FORMAT_FILES)
+	@echo "clang-format 已就地格式化 $(words $(FORMAT_FILES)) 个文件"
+
+format-check:
+	@command -v $(CLANG_FORMAT) >/dev/null 2>&1 || { \
+	  echo "缺失: $(CLANG_FORMAT)（提示见 make format）"; exit 1; }
+	$(CLANG_FORMAT) --dry-run -Werror $(FORMAT_FILES)
+
+lint:
+	@command -v $(CLANG_TIDY) >/dev/null 2>&1 || { \
+	  echo "缺失: $(CLANG_TIDY)"; \
+	  echo "  Fedora: sudo dnf install -y clang clang-tools-extra"; \
+	  echo "  Debian: sudo apt-get install -y clang clang-tidy"; exit 1; }
+	@echo "clang-tidy: $(words $(FORMAT_FILES)) 个文件（配置见 .clang-tidy）"
+	@$(CLANG_TIDY) $(FORMAT_FILES) -- $(TIDY_FLAGS) 2>&1 | tee /tmp/wise-tidy.log | tail -5
+	@if grep -qE 'error:' /tmp/wise-tidy.log; then \
+	  echo "clang-tidy 存在 error 级问题："; grep -E 'error:' /tmp/wise-tidy.log | head -20; exit 1; \
+	fi
+	@echo "clang-tidy warning 数: $$(grep -cE 'warning:' /tmp/wise-tidy.log || true)（本门禁只阻断 error）"
+
+help:
+	@echo "WiseDepot 设备端构建目标："
+	@echo "  make check-deps    依赖自检（缺什么/装什么）"
+	@echo "  make debug|release 调试/发布构建（支持 CROSS_COMPILE=、CC=）"
+	@echo "  make check         单元测试；check-all = check+layers+hygiene+asan+tsan"
+	@echo "  make check-asan    ASan+UBSan；check-tsan = TSan；check-mqtt = 真实 broker 集成"
+	@echo "  make check-hygiene 日志文案/独白注释/Doxygen 门禁；check-layers 分层围栏"
+	@echo "  make format        clang-format 就地格式化；format-check 只校验"
+	@echo "  make lint          clang-tidy（仅 error 阻断）"
+	@echo "  make coverage      lcov 覆盖率；install/uninstall 安装到 DESTDIR"
 
 # 安装 (Release)
 install: release
