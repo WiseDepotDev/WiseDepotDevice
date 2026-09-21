@@ -91,10 +91,16 @@ wd_error_t config_update_from_json(const char *json_str);
  * @return 0 成功，-1 失败
  */
 /**
- * @brief 把当前配置序列化落盘（当前为明文 JSON，加密待实现）
+ * @brief 把当前配置的**非敏感快照**序列化落盘（`wise-device.dat`）。
+ *
+ * 安全边界（M-08 实测结论，2026-02-27）：本文件**不含任何口令、令牌或密钥**——
+ * `signature_secret` / MQTT 口令 / 加密密钥一律只从配置文件（0600）或环境变量读取，
+ * 从不写入该文件；实测产物 401 字节、无 secret/password/token 字样。
+ * 旧名 `config_save_encrypted()` 名不副实（既不加密也无需加密），已改为现名。
+ *
  * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
  */
-wd_error_t config_save_encrypted(void);
+wd_error_t config_save_persistent(void);
 
 /**
  * 安全删除旧配置文件

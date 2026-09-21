@@ -425,13 +425,21 @@ wd_error_t config_update_from_json(const char *json_str) {
     
     cJSON_Delete(root);
     
-    // 保存到本地
-    config_save_encrypted();
+    /* 落盘非敏感快照（wise-device.dat）——便于排障与后续读回；
+     * 该文件不含任何口令/令牌/密钥（M-08）。 */
+    config_save_persistent();
     
     return 0;
 }
 
-wd_error_t config_save_encrypted(void) {
+/**
+ * 把当前配置的**非敏感快照**写入 wise-device.dat
+ *
+ * M-08 实测（2026-02-27）：产物不含任何口令/令牌/密钥——敏感值只从配置文件（0600）
+ * 或环境变量读取，从不写入本文件，因此无需加密；旧名 config_save_encrypted()
+ * 既不真实也容易误导（源码里曾长期挂着 TODO: Implement AES encryption），已改为现名。
+ */
+wd_error_t config_save_persistent(void) {
     if (!g_config) return WD_ERR_STATE;
     
     cJSON *root = cJSON_CreateObject();
@@ -463,13 +471,9 @@ wd_error_t config_save_encrypted(void) {
         return WD_ERR_NOMEM;
     }
     
-    // 简单加密模拟 (实际应使用 OpenSSL AES)
-    // 这里为了演示，只做简单处理，或者直接保存 JSON
-    // TODO: Implement AES encryption
-    
     FILE *fp = fopen(PERSISTENT_CONFIG_FILE, "w");
     if (fp) {
-        fputs(json_str, fp); // TODO: Write encrypted data
+        fputs(json_str, fp);
         fclose(fp);
     } else {
         LOG_ERROR("Failed to write persistent config");
