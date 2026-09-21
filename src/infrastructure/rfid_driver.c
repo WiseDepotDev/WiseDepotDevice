@@ -164,17 +164,8 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
     // Verify CRC
     uint16_t calc_crc = calculate_crc16(response, resp_len_byte - 1); // Calculate up to Data end
     
-    // Note: Manual says "LSB-CRC16 | MSB-CRC16" at the end.
-    // The CRC calculation function provided in manual returns uint16.
-    // Manual says: "upper computer... calculate CRC16... result 0x0000 indicates correct"
-    // Wait, the manual code snippet shows checking if crc == 0x0000 if we include the CRC bytes in calculation?
-    // "上位机收到数据的时候，只要把收到的数据按以上算法进行计算CRC16，结果为0x0000表明数据正确。"
-    // This usually implies that if you run CRC over the whole frame INCLUDING the CRC bytes (if they are appended correctly), you get 0.
-    // Let's check the code:
-    // If we run calculate_crc16 on [Len ... Data ... CRC_LSB, CRC_MSB], does it result in 0?
-    // The provided C code just calculates CRC over a buffer.
-    // Typically: CRC(Data + CRC) == 0.
-    // Let's try to verify this assumption later. For now, let's recalculate and compare.
+    /* 手册：帧尾为 LSB-CRC16 | MSB-CRC16，且「整帧（含 CRC 字节）重算结果为 0x0000」；
+     * 这里采用等价且不依赖读头行为的判据——重算帧体的 CRC 并与帧内 CRC 逐字节比对。 */
     
     uint16_t embedded_crc = response[resp_len_byte - 1] | (response[resp_len_byte] << 8); // LSB first in stream
     if (calc_crc != embedded_crc) {
@@ -309,8 +300,7 @@ wd_error_t rfid_set_power(int dbm) {
 
 int rfid_inventory(rfid_tag_t *tags, size_t max_tags) {
     // CMD_INVENTORY (0x01)
-    // Data: AdrTID(1), LenTID(1) - Optional, assume EPC inventory if not present or empty
-    // Let's send basic inventory command with no data for EPC
+    /* 仅做 EPC 盘点：不带 AdrTID/LenTID（可选字段），命令无数据段。 */
     
     uint8_t resp[RFID_FRAME_MAX_LEN];
     int count = 0;
@@ -358,18 +348,8 @@ int rfid_inventory(rfid_tag_t *tags, size_t max_tags) {
         count++;
     }
     
-    // If status is 0x03 or 0x04, we might need to fetch more?
-    // Manual says: "If status is 0x03, there is more data."
-    // But how to get it? The reader just sends another packet?
-    // Or do we need to poll again?
-    // "Reader will return response... if multiple messages... will send separately"
-    // Since we use a request-response model, usually we just read again from serial port without sending command?
-    // The `serial_read` function above reads ONE response frame. 
-    // If the reader sends multiple frames for one command, we need to handle that.
-    // However, for simplicity in this "Request/Response" implementation, 
-    // we might need a loop to check if more data is coming if status is 0x03.
-    
-    // For now, let's just return what we got.
+    /* 状态 0x03/0x04 表示"还有数据"，但当前实现是严格一问一答（serial_read 只读一帧），
+     * 因此本次只返回已解析到的标签数；多帧续读尚未实现（已登记为发现项，需真机确认读头行为）。 */
     return count;
 }
 

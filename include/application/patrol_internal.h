@@ -53,6 +53,13 @@ extern patrol_service_state_t g_patrol_service;
 
 /* ===== 跨文件内部接口 ===== */
 /** 单个巡检动作的执行入口（原 static，拆分后跨文件可见；作为回调传给 patrol_task_execute） */
+/**
+ * @brief 巡检动作回调：按动作类型驱动电机/扫码
+ * @param task 巡检任务
+ * @param action_index 参数
+ * @param context 回调上下文
+ * @return 1 = 已处理（回调约定）；负值表示失败
+ */
 int patrol_action_callback(const patrol_task_t *task, uint8_t action_index, void *context);
 
 #endif // WISE_DEPOT_PATROL_INTERNAL_H

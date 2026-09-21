@@ -14,6 +14,10 @@
  *
  * @param ctx 上下文 (未使用)
  */
+/**
+ * @brief 心跳任务的定时执行体
+ * @param ctx 参数
+ */
 void heartbeat_task_execute(void *ctx);
 
 /**
@@ -21,10 +25,17 @@ void heartbeat_task_execute(void *ctx);
  *
  * @param token 认证 Token (会复制一份)
  */
+/**
+ * @brief 把令牌注入心跳头
+ * @param token 访问令牌
+ */
 void heartbeat_set_token(const char *token);
 
 /**
  * 清除心跳 Token
+ */
+/**
+ * @brief 清除心跳头中的令牌
  */
 void heartbeat_clear_token(void);
 

@@ -34,6 +34,11 @@ typedef struct {
  * @param state 状态结构体指针
  * @param config 配置结构体指针 (如果为 NULL，使用默认值)
  */
+/**
+ * @brief 初始化退避状态与参数（含参数合法性钳制）
+ * @param state 参数
+ * @param config 配置
+ */
 void backoff_init(backoff_state_t *state, const backoff_config_t *config);
 
 /**
@@ -48,6 +53,10 @@ unsigned int backoff_next_interval(backoff_state_t *state);
  * 重置重连状态 (连接成功后调用)
  *
  * @param state 状态结构体指针
+ */
+/**
+ * @brief 把退避状态复位到初始间隔
+ * @param state 参数
  */
 void backoff_reset(backoff_state_t *state);
 

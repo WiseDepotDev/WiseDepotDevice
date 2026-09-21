@@ -65,6 +65,11 @@ typedef struct {
  * @param config_file 配置文件路径 (可选)
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 加载配置（环境变量 > 配置文件 > 默认值），只做本地 I/O
+ * @param config_file 参数
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t config_load(const char *config_file);
 
 /**
@@ -73,12 +78,21 @@ wd_error_t config_load(const char *config_file);
  * @param json_str JSON 格式的配置字符串
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 用服务端下发的 JSON 更新配置并落盘
+ * @param json_str 标准信封 JSON 文本
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t config_update_from_json(const char *json_str);
 
 /**
  * 保存配置到加密文件
  *
  * @return 0 成功，-1 失败
+ */
+/**
+ * @brief 把当前配置序列化落盘（当前为明文 JSON，加密待实现）
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
  */
 wd_error_t config_save_encrypted(void);
 
@@ -87,6 +101,11 @@ wd_error_t config_save_encrypted(void);
  *
  * @param file_path 文件路径
  * @return 0 成功，-1 失败
+ */
+/**
+ * @brief 安全删除配置文件
+ * @param file_path 文件路径
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
  */
 wd_error_t config_secure_delete(const char *file_path);
 
@@ -113,10 +132,17 @@ const char *config_signature_secret(void);
  *
  * @param url 新的服务端地址（NULL 忽略）
  */
+/**
+ * @brief 覆盖服务端地址
+ * @param url 参数
+ */
 void config_set_server_url(const char *url);
 
 /**
  * 释放配置资源
+ */
+/**
+ * @brief 释放配置结构占用的内存
  */
 void config_free(void);
 
@@ -125,6 +151,11 @@ void config_free(void);
  *
  * @param distance_cm 距离 (cm)
  * @return 时间 (秒)
+ */
+/**
+ * @brief 按速度与距离计算行走所需毫秒数
+ * @param distance_cm 距离（厘米）
+ * @return 计算出的毫秒数（至少 1）
  */
 float config_calculate_move_duration(float distance_cm);
 

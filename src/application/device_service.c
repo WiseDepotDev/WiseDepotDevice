@@ -217,7 +217,7 @@ void device_run(void) {
         g_reauth_needed = 1;
     }
 
-    // 3. Fetch Initial wd_config_t
+    // 3. 首次拉取远端配置
     config_fetch_task(NULL);
     
     const wd_config_t *cfg = config_get();
@@ -226,7 +226,7 @@ void device_run(void) {
     // Heartbeat (1s default)
     scheduler_add_task("Heartbeat", heartbeat_wrapper, NULL, cfg->heartbeat_interval * 1000);
     
-    // wd_config_t Fetch (60s)
+    // 配置拉取（60s）
     scheduler_add_task("ConfigFetch", config_fetch_task, NULL, 60000);
     
     // Log Upload (5s)

@@ -119,8 +119,7 @@ const device_info_t *device_info_get(void) {
         return NULL;
     }
     
-    // 4. Serial No (Optional, usually same as device_id in config, skip for now or implement if needed)
-    // For now, we leave it NULL, application layer can fill it if needed
+    /* 4. 序列号：默认留空，由应用层按 device_id 填充。 */
     
     LOG_INFO("Device Info Detected: OS=%s, Kernel=%s, Model=%s", 
              g_info->os_name, g_info->kernel_ver, g_info->model);

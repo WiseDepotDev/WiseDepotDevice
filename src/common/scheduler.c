@@ -67,15 +67,14 @@ wd_error_t scheduler_add_task(const char *name, scheduler_task_callback_t callba
     new_task->callback = callback;
     new_task->context = context;
     new_task->interval_ms = interval_ms;
-    new_task->last_run = 0; // Initialize as 0 to run immediately or wait?
-    // Let's set it to current time to run after interval
+    new_task->last_run = get_time_ms(); /* 首次运行 = 当前时间 + 间隔，不在注册瞬间立刻跑 */
     new_task->last_run = get_time_ms();
     
     // Add to list (head insert for simplicity)
     new_task->next = g_scheduler.head;
     g_scheduler.head = new_task;
     
-    LOG_INFO("scheduler_task_t added: %s (interval: %dms)", name, interval_ms);
+    LOG_INFO("Task added: %s (interval: %dms)", name, interval_ms);
     return 0;
 }
 
@@ -110,7 +109,7 @@ void scheduler_run(unsigned int resolution_ms) {
                 
                 // Update last_run
                 // Option 1: last_run = now (drifts if task is slow)
-                // Option 2: last_run += interval (catches up if slow, but might burst)
+                /* 选择：last_run 直接取当前时间，避免长时间阻塞后连续补跑（burst）。 */
                 // For this simple scheduler, use Option 1 to avoid burst
                 curr->last_run = get_time_ms();
             }

@@ -37,6 +37,10 @@ typedef struct scheduler_task_t {
  *
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 初始化调度器（清空任务表）
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t scheduler_init(void);
 
 /**
@@ -48,6 +52,14 @@ wd_error_t scheduler_init(void);
  * @param interval_ms 执行间隔 (毫秒)
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 注册周期任务（间隔毫秒，首次运行在间隔之后）
+ * @param name 任务名
+ * @param callback 回调函数
+ * @param context 回调上下文
+ * @param interval_ms 周期（毫秒）
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t scheduler_add_task(const char *name, scheduler_task_callback_t callback, void *context, unsigned int interval_ms);
 
 /**
@@ -55,15 +67,25 @@ wd_error_t scheduler_add_task(const char *name, scheduler_task_callback_t callba
  *
  * @param resolution_ms 调度器检查间隔 (毫秒)，建议 100-1000
  */
+/**
+ * @brief 阻塞运行调度循环，直到 scheduler_stop
+ * @param resolution_ms 参数
+ */
 void scheduler_run(unsigned int resolution_ms);
 
 /**
  * 停止调度器
  */
+/**
+ * @brief 请求停止调度循环
+ */
 void scheduler_stop(void);
 
 /**
  * 销毁调度器并释放资源
+ */
+/**
+ * @brief 释放调度器中的全部任务
  */
 void scheduler_destroy(void);
 

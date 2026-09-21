@@ -282,8 +282,7 @@ char *inventory_report_to_json(const inventory_report_t *report, const char *tas
 }
 
 wd_error_t inventory_cache_save(const inventory_report_t *report) {
-    char *json = inventory_report_to_json(report, NULL); // Offline cache might not need task_id or we can add it later
-    if (!json) return WD_ERR_NOMEM;
+    char *json = inventory_report_to_json(report, NULL); /* 离线缓存不绑定任务号 */    if (!json) return WD_ERR_NOMEM;
     
     FILE *f = fopen(CACHE_FILE, "a"); // Append mode
     if (!f) {
@@ -298,11 +297,8 @@ wd_error_t inventory_cache_save(const inventory_report_t *report) {
 }
 
 char *inventory_cache_load(void) {
-    // Load one line (one report) from cache
-    // This is a simplified implementation. 
-    // In production, we might want to read all, send all, then clear.
-    // Here we just return the whole file content for simplicity of demonstration
-    
+    /* 读取整个缓存文件（调用方负责上传成功后清理）；
+     * 生产化需要「读一批 → 上传成功 → 删除该批」的分段清理。 */
     FILE *f = fopen(CACHE_FILE, "r");
     if (!f) return NULL;
     

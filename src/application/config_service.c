@@ -20,7 +20,7 @@
 #include <time.h>
 
 wd_error_t config_service_init(void) {
-    LOG_INFO("wd_config_t service initialized");
+    LOG_INFO("Config service initialized");
     return 0;
 }
 
@@ -52,7 +52,7 @@ int config_service_fetch_remote(void) {
 
     int rc = -1;
     if (res->status_code == 200 && res->body) {
-        LOG_INFO("wd_config_t fetched successfully");
+        LOG_INFO("Config fetched successfully");
         rc = config_update_from_json(res->body);
     } else {
         LOG_WARN("Failed to fetch config, status: %d", res->status_code);
@@ -84,78 +84,11 @@ void config_fetch_task(void *ctx) {
     // 使用与服务端 DeviceController 映射一致的路径: /api/device/config
     snprintf(uri_path, sizeof(uri_path), "%s/config", cfg->api_base_url);
     
-    // 如果 api_base_url 是 "/api/v1"，则 uri_path 是 "/api/v1/config"
-    // 但服务端日志显示 404: 资源不存在: api/v1/config
-    // 检查服务端 Controller 路径
-    // DeviceController 上有 @RequestMapping("/api/device") 吗？
-    // 让我们看 DeviceController.java
-    // 
-    // 如果 Controller 是 @RequestMapping("/api/device")，且方法是 @GetMapping("/config")
-    // 那么完整路径是 /api/device/config
-    // 
-    // 但 wd_config_t.c 中默认 DEFAULT_API_BASE_URL 是 "/api/v1"
-    // 所以客户端请求的是 /api/v1/config
-    // 这就是 404 的原因！
-    // 
-    // 我们需要修改客户端默认配置，或者服务端路径。
-    // 服务端 DeviceController 似乎没有类级别的 @RequestMapping，或者有但我们没看到。
-    // 但看之前的注册请求 POST /api/device 是成功的。
-    // 这意味着 /api/device 是存在的。
-    // 
-    // 让我们假设 wd_config_t.c 中的默认值错了。
-    // 我们应该将 DEFAULT_API_BASE_URL 修改为 "/api/device"
-    
-    // 但这里只能改代码。
-    // 实际上，wd_config_t.c 中写死的是 "/api/v1"。
-    // 我们需要在 wd_config_t.c 中修改默认值，或者在这里 override。
-    // 更好的做法是去修改 wd_config_t.c。
-    
-    // 暂时先在这里 hack 一下，或者让用户去改 wd_config_t.c?
-    // 不，我是 AI，我应该直接去改 wd_config_t.c。
-    
-    // 既然已经在编辑这个文件，我先把这里的逻辑保持原样，然后去改 wd_config_t.c。
-    // 但为了确保这里的 uri_path 和 url 一致，我需要确保 cfg->api_base_url 是对的。
-    // 
-    // 如果我不改 wd_config_t.c，只改这里，那么 cfg->api_base_url 还是 /api/v1。
-    // 
-    // 让我们先不要提交这个 SearchReplace，而是去修改 src/common/config.c。
-    // 
-    // 等等，我必须提交一个 tool call。
-    // 既然现在的任务是修复 404，而 404 是因为路径不对。
-    // 服务端日志明确说：`资源未找到: api/v1/config`
-    // 而注册请求是 `POST /api/device` 成功的。
-    // 说明正确的基础路径应该是 `/api/device`。
-    
-    // 我将修改 src/common/config.c 中的 DEFAULT_API_BASE_URL。
-    
+    /* 拉取路径 = api_base_url + /config，与服务端 DeviceController 的类级映射一致
+     * （config_init_defaults 里的默认 api_base_url 为 /api/device）。 */
     snprintf(uri_path, sizeof(uri_path), "%s/config", cfg->api_base_url);
-    
-    // 假设服务端签名验证逻辑为:
-    // StringToSign = METHOD + "\n" + URI + "\n" + SortedQueryString + "\n" + Nonce + "\n" + Timestamp
-    
-    // 从服务端日志来看，注册请求 POST /api/device 的签名是验证通过的。
-    // 但是 GET /api/device/config 的签名失败了 (401 缺少有效的身份认证信息 AUTH-0001)。
-    // 
-    // 等等，服务端日志显示: 
-    // 业务异常: code=AUTH-0001, message=缺少有效的身份认证信息, uri=/api/device/config
-    // 
-    // 这通常意味着请求中没有携带 Token，或者 Token 无效。
-    // 而不是签名错误 (签名错误通常是 401 签名验证失败)。
-    // 
-    // 回顾 DeviceService.c 中的注册逻辑:
-    // 注册成功后，服务端返回了 token。
-    // 设备端保存了 token 到 g_token。
-    // 
-    // 但是 ConfigService 发起请求时，并没有在 Header 中携带这个 Token！
-    // 
-    // 我们需要在 headers 中添加 X-Auth-Token (或者服务端期望的 Header Name)。
-    // 让我们查看服务端代码，确认 Token 的 Header Name。
-    // 通常是 Authorization: Bearer <token> 或 X-Auth-Token。
-    
-    // 假设是 Authorization: Bearer <token>。
-    // 我们需要从 device_service 获取 token。
-    // 
-    // 让我们先修改 headers 数组大小。
+
+    /* 签名串：METHOD \n URI \n SortedQueryString（服务端校验逻辑，改动需同步服务端与 APP）。 */
     
     // 获取 Token（声明见 application/device_service.h）
     char *token = device_service_get_token();
@@ -213,24 +146,22 @@ void config_fetch_task(void *ctx) {
     }
     
     if (res->status_code == 304) {
-        LOG_DEBUG("wd_config_t not modified");
+        LOG_DEBUG("Config not modified");
         http_response_free(res);
         return;
     }
     
     if (res->status_code == 200 && res->body) {
-        // Verify signature if header present
-        // Implementation detail: server should return X-Signature header
-        // For now, we assume trusted HTTPS channel or implement simple check
+        /* 响应体未做签名校验：当前依赖 HTTPS 通道（若要校验响应签名，服务端需回 X-Signature）。 */
         
         LOG_INFO("Received new config version");
         if (config_update_from_json(res->body) == 0) {
-            LOG_INFO("wd_config_t updated successfully");
+            LOG_INFO("Config updated successfully");
         } else {
             LOG_ERROR("Failed to update config from response");
         }
     } else {
-        LOG_WARN("wd_config_t fetch failed: %d", res->status_code);
+        LOG_WARN("Config fetch failed: %d", res->status_code);
     }
     
     http_response_free(res);

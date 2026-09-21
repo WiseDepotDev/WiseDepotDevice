@@ -57,6 +57,10 @@ http_response_t *http_put(const char *url, const char *json_body, const char **h
  *
  * @param res 响应结构体指针
  */
+/**
+ * @brief 释放 HTTP 响应（结构体与响应体）
+ * @param res HTTP 响应
+ */
 void http_response_free(http_response_t *res);
 
 /**

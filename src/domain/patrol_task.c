@@ -54,7 +54,7 @@ static const struct {
     {PATROL_TASK_STATUS_CANCELLED, "cancelled"}
 };
 
-/* 取消标志已移入 patrol_task_t.cancel_requested（P4-07）：不再有全局取消状态 */
+/* 取消标志已移入 patrol_task_t 的 cancel_requested 字段（P4-07）：不再有全局取消状态 */
 
 /**
  * 获取动作类型名称

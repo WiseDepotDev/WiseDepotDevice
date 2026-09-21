@@ -28,6 +28,12 @@ typedef enum {
  * @param level 最低日志级别
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 初始化日志（可选文件输出），可重复调用
+ * @param log_file 日志文件路径
+ * @param level 电平/布尔值
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t logger_init(const char *log_file, log_level_t level);
 
 /**
@@ -36,10 +42,18 @@ wd_error_t logger_init(const char *log_file, log_level_t level);
  * @param new_log_file 新日志文件路径 (可选，NULL 则使用原路径)
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 切换日志文件路径（不丢已写入内容）
+ * @param new_log_file 新的日志文件路径
+ * @return 0 成功；负值失败
+ */
 int logger_reopen(const char *new_log_file);
 
 /**
  * 关闭日志系统
+ */
+/**
+ * @brief 关闭日志文件并释放日志资源
  */
 void logger_close(void);
 
@@ -51,6 +65,13 @@ void logger_close(void);
  * @param line 行号
  * @param fmt 格式化字符串
  * @param ... 参数
+ */
+/**
+ * @brief 按级别写一条日志（线程安全）
+ * @param level 电平/布尔值
+ * @param file 参数
+ * @param line 参数
+ * @param fmt 参数
  */
 void logger_log(log_level_t level, const char *file, int line, const char *fmt, ...);
 

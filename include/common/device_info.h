@@ -31,6 +31,9 @@ const device_info_t *device_info_get(void);
  * 释放设备信息资源
  * 在程序退出前调用
  */
+/**
+ * @brief 释放设备信息结构占用的内存
+ */
 void device_info_free(void);
 
 #endif // WISE_DEPOT_DEVICE_INFO_H

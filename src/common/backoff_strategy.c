@@ -36,11 +36,8 @@ void backoff_init(backoff_state_t *state, const backoff_config_t *config) {
     
     backoff_reset(state);
     
-    // Seed random number generator if not already done
-    // Note: In multi-threaded environment, this should be done once globally.
-    // For this simple implementation, we assume main() called srand or we do it here lazily.
-    // However, calling srand repeatedly is bad.
-    // Let's assume user calls srand(time(NULL)) in main.
+    /* 随机数种子由进程入口负责（main 调用 srand），本模块不重复 srand：
+     * 反复播种会让 jitter 在多线程下退化为同一序列。 */
 }
 
 void backoff_reset(backoff_state_t *state) {

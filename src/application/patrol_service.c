@@ -235,7 +235,7 @@ wd_error_t patrol_service_start_task(patrol_task_t *task) {
     } else {
         // Add to queue
         if (g_patrol_service.queue_count >= MAX_TASK_QUEUE_SIZE) {
-            LOG_WARN("scheduler_task_t queue is full, rejecting task: %s", task->id);
+            LOG_WARN("Task queue is full, rejecting task: %s", task->id);
             pthread_mutex_unlock(&g_patrol_service.queue_mutex);
             return WD_ERR_FULL;
         }
@@ -243,7 +243,7 @@ wd_error_t patrol_service_start_task(patrol_task_t *task) {
         g_patrol_service.task_queue[g_patrol_service.queue_tail] = task;
         g_patrol_service.queue_tail = (g_patrol_service.queue_tail + 1) % MAX_TASK_QUEUE_SIZE;
         g_patrol_service.queue_count++;
-        LOG_INFO("scheduler_task_t queued: %s (Queue size: %d)", task->id, g_patrol_service.queue_count);
+        LOG_INFO("Task queued: %s (Queue size: %d)", task->id, g_patrol_service.queue_count);
     }
     
     pthread_mutex_unlock(&g_patrol_service.queue_mutex);

@@ -15,6 +15,10 @@
  *
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 初始化配置服务
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t config_service_init(void);
 
 /**
@@ -26,6 +30,10 @@ wd_error_t config_service_init(void);
  *
  * @return 0 成功拉取并合并，-1 跳过或失败
  */
+/**
+ * @brief 启动阶段的一次性远端配置拉取（无签名，失败不影响启动）
+ * @return 0 成功；负值失败
+ */
 int config_service_fetch_remote(void);
 
 /**
@@ -33,10 +41,17 @@ int config_service_fetch_remote(void);
  *
  * @param ctx 上下文 (未使用)
  */
+/**
+ * @brief 定时拉取远端配置（带签名与令牌）
+ * @param ctx 参数
+ */
 void config_fetch_task(void *ctx);
 
 /**
  * 停止配置服务
+ */
+/**
+ * @brief 停止配置服务
  */
 void config_service_stop(void);
 

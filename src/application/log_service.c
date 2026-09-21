@@ -75,8 +75,7 @@ static void process_upload_queue(const wd_config_t *cfg) {
                 snprintf(url, sizeof(url), "%s%s/logs/upload?deviceId=%s", 
                          cfg->server_url, cfg->api_base_url, cfg->device_id);
                 
-                // We can use multipart/form-data but our http_client is simple.
-                // Let's send raw text with Content-Type: text/plain
+                /* 上传格式为 text/plain 原文（http_client 不支持 multipart/form-data）。 */
                 const char *headers[] = { "Content-Type: text/plain" };
                 
                 http_response_t *res = http_post_with_retry(url, buffer, headers, 1, 10000, 3);

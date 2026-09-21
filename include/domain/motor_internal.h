@@ -58,17 +58,74 @@ typedef struct {
 extern motor_ctrl_state_t g_motor_ctrl;
 
 /* ===== PCA9685 低层（motor_pwm.c） ===== */
+/**
+ * @brief 写 PCA9685 寄存器
+ * @param reg 寄存器地址
+ * @param value 写入值
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t pca9685_write(uint8_t reg, uint8_t value);
+/**
+ * @brief 读 PCA9685 寄存器
+ * @param reg 寄存器地址
+ * @return 寄存器值；失败返回负错误码
+ */
 int pca9685_read(uint8_t reg);
+/**
+ * @brief 设置 PCA9685 PWM 频率
+ * @param freq PWM 频率（Hz）
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t pca9685_set_pwm_freq(uint16_t freq);
+/**
+ * @brief 设置指定通道的 PWM 起止计数值
+ * @param channel PCA9685 通道
+ * @param on PWM 起始计数
+ * @param off PWM 结束计数
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t pca9685_set_pwm(uint8_t channel, uint16_t on, uint16_t off);
+/**
+ * @brief 按占空比设置通道输出
+ * @param channel PCA9685 通道
+ * @param duty_percent 占空比（0-100）
+ * @return 0 成功；负值失败
+ */
 int pca9685_set_duty_cycle(uint8_t channel, uint8_t duty_percent);
+/**
+ * @brief 把通道置为常高/常低
+ * @param channel PCA9685 通道
+ * @param level 电平/布尔值
+ * @return 0 成功；负值失败
+ */
 int pca9685_set_level(uint8_t channel, bool level);
 
 /* ===== GPIO sysfs（motor_gpio.c） ===== */
+/**
+ * @brief 导出 GPIO 引脚（返回实际引脚号）
+ * @param pin GPIO 引脚号（导出后为内核编号）
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t gpio_export(int *pin);
+/**
+ * @brief 设置 GPIO 方向（输入/输出）
+ * @param pin GPIO 引脚号（导出后为内核编号）
+ * @param output 参数
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t gpio_set_direction(int pin, bool output);
+/**
+ * @brief 写 GPIO 电平
+ * @param pin GPIO 引脚号（导出后为内核编号）
+ * @param value 写入值
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t gpio_write(int pin, bool value);
+/**
+ * @brief 取消导出 GPIO 引脚
+ * @param pin GPIO 引脚号（导出后为内核编号）
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t gpio_unexport(int pin);
 
 #endif // WISE_DEPOT_MOTOR_INTERNAL_H

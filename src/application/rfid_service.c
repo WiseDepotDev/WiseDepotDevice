@@ -265,12 +265,8 @@ wd_error_t rfid_service_run_cycle(const char *task_id) {
         }
     }
     
-    // 2. Fetch Expected
-    // Note: If fetch fails, we assume empty expected list? Or abort?
-    // Requirement: "Server returns... then compare"
-    // If we can't get list, we probably can't do "Loss" detection, but can do "Surplus" (everything is surplus).
-    // Let's try to fetch, if fail, maybe use cached expected list? (Not implemented)
-    // For now, if fetch fails, we warn and proceed with empty list (or last loaded).
+    /* 2. 拉取预期库存。策略：失败只告警并沿用"上一次加载的列表"（内存里已有内容不回滚），
+     * 因此盘亏可能漏报、盘盈仍然成立；缓存回退尚未实现（见任务清单 P4-13 发现项）。 */
     if (fetch_expected_inventory() != 0) {
         // LOG_WARN("Could not fetch expected inventory, proceeding with current/empty list"); // Reduce spam
     }

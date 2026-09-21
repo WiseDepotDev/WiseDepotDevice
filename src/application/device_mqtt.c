@@ -45,7 +45,7 @@ void device_on_mqtt_message(const char *topic, const char *payload) {
     cJSON *targetDistanceItem = cJSON_GetObjectItem(json, "targetDistance");
     
     if (taskIdItem && taskTypeItem) {
-        // Create patrol_task_t
+        // 构造巡检任务对象
         patrol_task_t *task = (patrol_task_t *)xcalloc_try(1, sizeof(patrol_task_t));
         if (!task) {
             LOG_ERROR("分配巡检任务失败（内存不足），丢弃该 MQTT 任务消息");
@@ -80,9 +80,8 @@ void device_on_mqtt_message(const char *topic, const char *payload) {
             task->points[0].target_distance = distance;
             task->points[0].action = PATROL_ACTION_MOVE_FORWARD;
 
-            // 2. Populate actions (current executor support)
-            // The executor in patrol_task.c only looks at task->actions, not points.
-            // We need to convert distance to duration-based action.
+            /* 2. 填充 actions：patrol_task.c 的执行器只消费 actions（不消费 points），
+             * 因此这里把"距离"折算成"时间"动作。 */
             
             patrol_action_t action;
             memset(&action, 0, sizeof(patrol_action_t));
@@ -117,8 +116,7 @@ void device_on_mqtt_message(const char *topic, const char *payload) {
             LOG_INFO("Created patrol actions: forward(%dms) + scan(2000ms) (dist: %.1fcm)", 
                      action.duration_ms, distance);
         } else {
-            // Plan task might need more details (points array)
-            // For now, assume simple manual task structure
+            /* 计划类任务暂按"无点位的手动任务"处理（点位结构待服务端下发协议确定）。 */
             task->point_count = 0;
         }
         

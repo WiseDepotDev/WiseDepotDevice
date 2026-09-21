@@ -41,7 +41,7 @@ double sys_monitor_get_cpu_usage(void) {
     while (*p && (*p < '0' || *p > '9')) p++; // Skip non-digit
     
     // Use sscanf to parse numbers
-    // We try to read up to 10 numbers
+    /* /proc/loadavg 前三个字段是 1/5/15 分钟负载，最多读 10 个数即可覆盖。 */
     int count = sscanf(p, "%llu %llu %llu %llu %llu %llu %llu %llu %llu %llu",
                        &user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal, &guest, &guest_nice);
                        

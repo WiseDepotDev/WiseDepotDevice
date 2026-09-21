@@ -86,6 +86,11 @@ typedef struct {
  * @param config 控制器配置 (NULL则使用默认配置)
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 初始化电机控制器（I2C + PCA9685 + GPIO）
+ * @param config 配置
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t motor_controller_init(const motor_controller_config_t *config);
 
 /**
@@ -96,6 +101,13 @@ wd_error_t motor_controller_init(const motor_controller_config_t *config);
  * @param speed 速度百分比 (0-100)
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 启动单个电机（方向 + 速度百分比）
+ * @param motor 电机编号
+ * @param direction 运动方向
+ * @param speed 速度百分比（0-100）
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t motor_run(motor_id_t motor, motor_direction_t direction, uint8_t speed);
 
 /**
@@ -104,12 +116,21 @@ wd_error_t motor_run(motor_id_t motor, motor_direction_t direction, uint8_t spee
  * @param motor 电机编号
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 停止单个电机
+ * @param motor 电机编号
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t motor_stop(motor_id_t motor);
 
 /**
  * 停止所有电机
  * 
  * @return 0 成功，-1 失败
+ */
+/**
+ * @brief 停止全部电机
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
  */
 wd_error_t motor_stop_all(void);
 
@@ -121,6 +142,13 @@ wd_error_t motor_stop_all(void);
  * @param duration_ms 持续时间 (毫秒)
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 按方向移动指定时长后自动停止（阻塞）
+ * @param direction 运动方向
+ * @param speed 速度百分比（0-100）
+ * @param duration_ms 持续时间（毫秒）
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t motor_move(move_direction_t direction, uint8_t speed, uint32_t duration_ms);
 
 /**
@@ -129,6 +157,12 @@ wd_error_t motor_move(move_direction_t direction, uint8_t speed, uint32_t durati
  * @param direction 移动方向
  * @param speed 速度百分比 (0-100)
  * @return 0 成功，-1 失败
+ */
+/**
+ * @brief 按方向启动移动（非阻塞，由调用方决定何时停）
+ * @param direction 运动方向
+ * @param speed 速度百分比（0-100）
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
  */
 wd_error_t motor_move_async(move_direction_t direction, uint8_t speed);
 
@@ -139,6 +173,12 @@ wd_error_t motor_move_async(move_direction_t direction, uint8_t speed);
  * @param distance_cm 移动距离 (厘米)
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 按方向移动指定距离后停止
+ * @param direction 运动方向
+ * @param distance_cm 距离（厘米）
+ * @return WD_OK 成功；其余为负的错误码
+ */
 int motor_move_distance(move_direction_t direction, float distance_cm);
 
 /**
@@ -148,10 +188,19 @@ int motor_move_distance(move_direction_t direction, float distance_cm);
  * @param angle 角度 (0-180)
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 设置舵机角度
+ * @param channel PCA9685 通道
+ * @param angle 舵机角度（0-180）
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t servo_set_angle(uint8_t channel, uint8_t angle);
 
 /**
  * 释放电机控制器资源
+ */
+/**
+ * @brief 释放电机控制器资源（关闭设备、复位引脚）
  */
 void motor_controller_cleanup(void);
 

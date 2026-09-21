@@ -54,6 +54,10 @@ char *xstrdup_try(const char *s);
  *
  * @param ptr 指向需要释放的内存
  */
+/**
+ * @brief 释放由 xmalloc 家族分配的内存（NULL 安全）
+ * @param ptr 指针
+ */
 void xfree(void *ptr);
 
 /**
@@ -63,15 +67,26 @@ void xfree(void *ptr);
  *
  * @param n 允许成功的分配次数；-1 表示关闭注入
  */
+/**
+ * @brief 故障注入：第 n 次分配开始失败（测试用）
+ * @param n 次数（第 n 次分配开始失败）
+ */
 void xmalloc_set_fail_after(long n);
 
 /** 关闭故障注入 */
+/**
+ * @brief 关闭故障注入
+ */
 void xmalloc_clear_fail_after(void);
 
 /**
  * 获取当前已分配但未释放的内存块数量（用于泄漏检测）
  *
  * @return 内存块计数
+ */
+/**
+ * @brief 取当前未释放的分配计数（泄漏检查用）
+ * @return 当前未释放的分配数
  */
 long xmalloc_get_allocation_count(void);
 

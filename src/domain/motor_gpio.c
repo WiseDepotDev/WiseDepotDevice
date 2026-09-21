@@ -39,7 +39,7 @@ wd_error_t gpio_export(int *pin) {
                          offsets[attempt-1], current_pin, retry_pin);
                 // 这里需要注意，如果是第二次重试（attempt=2），需要基于原始引脚
                 // 但是我们在 attempt=1 时修改了 current_pin?
-                // 让我们保持简单：总是基于原始输入 pin (保存在 *pin 中)
+                /* 始终基于入参 pin 计算路径（*pin 保存已导出的引脚号）。 */
                 current_pin = *pin + offsets[attempt-1];
             } else {
                 break; 

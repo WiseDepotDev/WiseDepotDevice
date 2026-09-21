@@ -131,6 +131,12 @@ patrol_task_t *patrol_task_create(const char *id, const char *name);
  * @param action 动作结构体
  * @return 0 成功，-1 失败 (任务已满)
  */
+/**
+ * @brief 向巡检任务追加一个动作
+ * @param task 巡检任务
+ * @param action 巡检动作
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t patrol_task_add_action(patrol_task_t *task, const patrol_action_t *action);
 
 /**
@@ -141,6 +147,13 @@ wd_error_t patrol_task_add_action(patrol_task_t *task, const patrol_action_t *ac
  * @param context 回调上下文
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 执行巡检任务并回调上报每个动作
+ * @param task 巡检任务
+ * @param callback 回调函数
+ * @param context 回调上下文
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, void *context);
 
 /**
@@ -149,12 +162,21 @@ wd_error_t patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callb
  * @param task 任务指针
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 请求取消正在执行的巡检任务
+ * @param task 巡检任务
+ * @return WD_OK 成功；其余为负的错误码（见 common/wd_error.h）
+ */
 wd_error_t patrol_task_cancel(patrol_task_t *task);
 
 /**
  * 释放巡检任务资源
  * 
  * @param task 任务指针
+ */
+/**
+ * @brief 释放巡检任务
+ * @param task 巡检任务
  */
 void patrol_task_free(patrol_task_t *task);
 

@@ -186,12 +186,9 @@ wd_error_t patrol_service_report_result(const patrol_task_t *task) {
     } else if (task->status == PATROL_TASK_STATUS_COMPLETED) {
         status_str = "COMPLETED";
     } else if (task->status == PATROL_TASK_STATUS_FAILED) {
-        // Server might not support FAILED, map to COMPLETED or leave as is if supported
-        // Based on InspectionApplicationService.updateTaskStatus, it only handles IN_PROGRESS and COMPLETED.
-        // Assuming we should mark it completed (maybe with error log separately) or just ignore if failed.
-        // For now, let's map FAILED to COMPLETED to ensure it's not stuck in PENDING, 
-        // or we need to add FAILED support on server.
-        // Let's stick to COMPLETED for now as the server closes the task.
+        /* 服务端 InspectionApplicationService.updateTaskStatus 只识别 IN_PROGRESS / COMPLETED，
+         * 因此 FAILED 统一上报为 COMPLETED（失败原因另行走日志），避免任务在服务端停在 PENDING。
+         * 服务端支持 FAILED 后应改回真实状态。 */
         status_str = "COMPLETED"; 
     }
     
@@ -257,7 +254,7 @@ wd_error_t patrol_service_report_result(const patrol_task_t *task) {
     }
     
     if (res->status_code == 401 || res->status_code == 403) {
-        LOG_WARN("scheduler_task_t status update unauthorized (Status: %d)", res->status_code);
+        LOG_WARN("Task status update unauthorized (Status: %d)", res->status_code);
         patrol_service_clear_token();
         device_trigger_reauth();
         http_response_free(res);

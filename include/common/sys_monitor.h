@@ -15,12 +15,20 @@
  *
  * @return CPU 使用率百分比
  */
+/**
+ * @brief 取 CPU 使用率百分比
+ * @return CPU 使用率百分比（0-100）
+ */
 double sys_monitor_get_cpu_usage(void);
 
 /**
  * 获取当前内存使用率 (0.0 - 100.0)
  *
  * @return 内存使用率百分比
+ */
+/**
+ * @brief 取内存使用率百分比
+ * @return 内存使用率百分比（0-100）
  */
 double sys_monitor_get_mem_usage(void);
 

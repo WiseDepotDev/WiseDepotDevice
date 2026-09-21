@@ -22,6 +22,15 @@
  * @param output 输出缓冲区 (至少 32 字节)
  * @return 0 成功，-1 失败
  */
+/**
+ * @brief 计算 HMAC-SHA256 摘要
+ * @param key 参数
+ * @param key_len 参数
+ * @param data 数据段
+ * @param data_len 数据段长度
+ * @param output 参数
+ * @return 0 成功；负值失败
+ */
 int hmac_sha256(const void *key, size_t key_len, const void *data, size_t data_len, void *output);
 
 /**

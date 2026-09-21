@@ -36,7 +36,7 @@ TEST_TARGET = bin/test_runner
 # 必须在"目标特定变量"生效后再展开，因此开启二次展开（下面写成 $$(...)）。
 .SECONDEXPANSION:
 
-.PHONY: all debug release clean check test check-all check-asan check-tsan check-mqtt check-layers directories coverage install uninstall
+.PHONY: all debug release clean check test check-all check-asan check-tsan check-mqtt check-layers check-hygiene directories coverage install uninstall
 
 all: debug
 
@@ -86,7 +86,7 @@ check: directories $$(LIB_OBJS) $$(TEST_OBJS)
 test: check
 
 # 本地一把梭门禁（不含需要 broker 的 check-mqtt）
-check-all: check check-layers check-asan check-tsan
+check-all: check check-layers check-hygiene check-asan check-tsan
 
 # 内存安全检查 (P4-01：ASan + UBSan；需要 libasan/libubsan)
 # 注意：**必须自己展开 check 的配方**，不能写成 `check-asan: clean check`——
@@ -114,6 +114,13 @@ check-mqtt: OBJROOT = obj
 check-mqtt: directories $$(LIB_OBJS)
 	$(CC) $(CFLAGS) -o bin/mqtt_integration test/integration/mqtt_integration.c $(LIB_OBJS) $(LDFLAGS)
 	bash test/integration/run_mqtt_integration.sh
+
+# 注释与日志文案卫生（P4-13/P4-14）
+# 背景：P4-10 批次3 的类型重命名把正则套在了字符串字面量上，'Config service initialized'
+# 被改成 'wd_config_t service initialized'；当时的"机械等价性证明"用的是同一套映射，
+# 按构造必然一致，发现不了这一类越界，因此补一条可执行门禁。
+check-hygiene:
+	@python3 tools/check-hygiene.py
 
 # 分层围栏（P4-08/P4-09）：用可执行的规则防止分层退化
 # 六条已成立的约束：common↛infrastructure、common↛application、

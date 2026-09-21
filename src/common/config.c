@@ -497,7 +497,7 @@ void config_set_server_url(const char *url) {
     if (!g_config || !url) return;
     if (g_config->server_url) xfree(g_config->server_url);
     g_config->server_url = xstrdup_try(url);
-    LOG_INFO("wd_config_t server URL updated to: %s", url);
+    LOG_INFO("Config server URL updated to: %s", url);
 }
 
 const wd_config_t *config_get(void) {

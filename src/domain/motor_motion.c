@@ -47,7 +47,7 @@ wd_error_t motor_run(motor_id_t motor, motor_direction_t direction, uint8_t spee
     if (trim != 0.0f) {
         // 如果 trim 是 0.1，speed 是 50，我们希望增加 10% 的输出能力? 
         // 还是简单地增加 10% 的占空比? 
-        // 让我们简单地将 speed 视为百分比，然后应用 trim
+        /* speed 按百分比处理，再叠加每个轮子的 trim 修正。 */
         // 例如：trim = 0.1, speed = 50 -> actual_speed = 50 * (1 + 0.1) = 55
         //      trim = -0.1, speed = 50 -> actual_speed = 50 * (1 - 0.1) = 45
         
@@ -189,7 +189,7 @@ wd_error_t motor_move_async(move_direction_t direction, uint8_t speed) {
             // Forward means all motors moving "forward" in their local frame?
             // Wait, mecanum wheels need specific patterns.
             // Assuming "Forward" is X-axis positive relative to car.
-            // Let's assume standard Mecanum config.
+            /* 按标准麦克纳姆轮布局映射四个轮子的方向。 */
             
             // Motor A (Left Front): Forward
             // Motor B (Right Front): Forward

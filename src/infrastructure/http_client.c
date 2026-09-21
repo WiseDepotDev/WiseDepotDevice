@@ -67,10 +67,7 @@ static http_response_t *perform_request(const char *method, const char *url, con
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout_ms > 0 ? timeout_ms : 5000L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L); // Follow redirects
     
-    // SSL Verification (In production, should be enabled and configured with CA bundle)
-    // For development, we might skip verification if using self-signed certs, 
-    // but requirement says "Secure communication". 
-    // Assuming CA certificates are properly installed on the system (Linux).
+    /* 生产必须保持校验开启（系统 CA 由部署方安装）；自签名联调才临时放开。 */
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L); 
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
