@@ -125,6 +125,17 @@ typedef int (*patrol_task_callback_t)(const patrol_task_t *task, uint8_t action_
 patrol_task_t *patrol_task_create(const char *id, const char *name);
 
 /**
+ * @brief 判断任务号是否为纯十进制数字（服务端 taskId 是 Long）。
+ *
+ * 服务端 `InspectionController.updateTaskStatus` 的 `taskId` 为 `Long`，
+ * 非数字任务号拼进 URL 会被拒 400（P4-15 联调发现）。上报前用它做前置校验。
+ *
+ * @param id 任务号（可为 NULL）
+ * @return true 表示非空且全部为数字
+ */
+bool patrol_task_id_is_numeric(const char *id);
+
+/**
  * 向任务添加动作
  * 
  * @param task 任务指针

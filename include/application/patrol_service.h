@@ -38,9 +38,15 @@ typedef struct {
 wd_error_t patrol_service_init(const patrol_service_config_t *config);
 
 /**
- * 从服务端获取待执行的巡检任务
- * 
- * @return 任务结构体指针 (需要调用者释放)，无任务或失败返回NULL
+ * @brief 从取任务响应体中提取第一条任务 JSON（兼容 data 数组与 data.rows 分页对象）
+ * @param body 响应体
+ * @return 堆上的任务 JSON 字符串（调用方负责 xfree）；无任务返回 NULL
+ */
+char *patrol_task_json_from_response(const char *body);
+
+/**
+ * @brief 从服务端获取待执行的巡检任务
+ * @return 任务结构体指针（调用方负责释放）；无任务或失败返回 NULL
  */
 patrol_task_t *patrol_service_fetch_task(void);
 

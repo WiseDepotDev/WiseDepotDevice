@@ -48,6 +48,71 @@ static bool is_response_success(const char *json) {
 }
 
 /**
+ * 从取任务响应体中提取第一条任务对象的 JSON（调用方负责 xfree）
+ *
+ * 兼容服务端两种 `data` 形状：
+ * - 数组：`"data":[{...}]`
+ * - 分页对象：`"data":{"total":N,"rows":[{...}]}`
+ */
+char *patrol_task_json_from_response(const char *body) {
+    if (!body) {
+        return NULL;
+    }
+
+    const char *data = strstr(body, "\"data\"");
+    if (!data) {
+        return NULL;
+    }
+
+    const char *start = NULL;
+
+    /* 优先按分页对象取（真实服务端形状） */
+    const char *rows_kv = strstr(data, "\"rows\"");
+    if (rows_kv) {
+        const char *bracket = strchr(rows_kv, '[');
+        if (bracket) {
+            start = strchr(bracket, '{');
+        }
+    }
+    if (!start) {
+        const char *bracket = strchr(data, '[');
+        if (bracket) {
+            start = strchr(bracket, '{');
+        }
+    }
+    if (!start) {
+        return NULL;
+    }
+
+    /* 花括号配对取整个对象（动作对象内部可能还有对象） */
+    int depth = 0;
+    const char *p = start;
+    for (; *p; p++) {
+        if (*p == '{') {
+            depth++;
+        } else if (*p == '}') {
+            depth--;
+            if (depth == 0) {
+                break;
+            }
+        }
+    }
+    if (depth != 0) {
+        return NULL;
+    }
+
+    size_t len = (size_t)(p - start) + 1;
+    char *out = xmalloc_try(len + 1);
+    if (!out) {
+        LOG_ERROR("分配任务 JSON 缓冲失败（内存不足）");
+        return NULL;
+    }
+    memcpy(out, start, len);
+    out[len] = '\0';
+    return out;
+}
+
+/**
  * 从服务端获取待执行的巡检任务
  */
 patrol_task_t *patrol_service_fetch_task(void) {
@@ -57,34 +122,37 @@ patrol_task_t *patrol_service_fetch_task(void) {
     }
     
     const wd_config_t *cfg = config_get();
-    char url[1024];
-    snprintf(url, sizeof(url), "%s/api/inspection/task?status=pending", 
-             cfg->server_url);
-    
+
+    /* P4-16：**URL 与签名串必须用同一份 query**。旧实现 URL 只带 `?status=pending`，
+     * 签名串却含 nonce/timestamp/status，服务端按实际 query 重算必然不一致（401）。 */
+    char timestamp[20];
+    snprintf(timestamp, sizeof(timestamp), "%ld", (long)time(NULL));
+
+    char nonce[20];
+    if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
+        LOG_ERROR("无法获取随机 nonce，取任务中止");
+        return NULL;
+    }
+
+    char query_string[1024];
+    snprintf(query_string, sizeof(query_string), "nonce=%s&status=pending&timestamp=%s",
+             nonce, timestamp);
+
+    /* url 需容纳 server_url + 完整 query（1024 会触发 -Werror=format-truncation） */
+    char url[2048];
+    snprintf(url, sizeof(url), "%s/api/inspection/task?%s", cfg->server_url, query_string);
+
     LOG_DEBUG("Fetching patrol task from: %s", url);
-    
+
     http_response_t *res = NULL;
-    
+
     if (g_patrol_service.token) {
         char auth_header[1024];
-        snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", 
+        snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s",
                  g_patrol_service.token);
         const char *headers[] = { auth_header };
         res = http_get(url, headers, 1);
     } else {
-        char timestamp[20];
-        snprintf(timestamp, sizeof(timestamp), "%ld", (long)time(NULL));
-        
-        char nonce[20];
-        if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
-            LOG_ERROR("无法获取随机 nonce，请求中止");
-            return NULL;
-        }
-        
-        char query_string[1024];
-        snprintf(query_string, sizeof(query_string), "nonce=%s&status=pending&timestamp=%s", 
-                 nonce, timestamp);
-        
         char string_to_sign[2048];
         const char *uri_path = "/api/inspection/task";
         snprintf(string_to_sign, sizeof(string_to_sign), "GET\n%s\n%s", uri_path, query_string);
@@ -140,26 +208,14 @@ patrol_task_t *patrol_service_fetch_task(void) {
         return NULL;
     }
     
-    char *data_start = strstr(res->body, "\"data\"");
-    if (!data_start) {
-        http_response_free(res);
-        return NULL;
-    }
-    
-    data_start = strchr(data_start, '[');
-    if (!data_start) {
-        http_response_free(res);
-        return NULL;
-    }
-    
-    char *task_start = strchr(data_start, '{');
-    if (!task_start) {
-        http_response_free(res);
-        return NULL;
-    }
-    
-    patrol_task_t *task = patrol_task_from_json(task_start);
+    char *task_json = patrol_task_json_from_response(res->body);
     http_response_free(res);
+
+    if (!task_json) {
+        return NULL;
+    }
+    patrol_task_t *task = patrol_task_from_json(task_json);
+    xfree(task_json);
     
     if (task) {
         LOG_INFO("Fetched patrol task: %s (%s)", task->id, task->name);
@@ -179,6 +235,14 @@ wd_error_t patrol_service_report_result(const patrol_task_t *task) {
     if (!g_patrol_service.initialized) {
         LOG_ERROR("Patrol service not initialized");
         return WD_ERR_STATE;
+    }
+
+    /* P4-16：服务端 `PUT /api/inspection/task/{taskId}/status` 的 taskId 是 Long，
+     * 非数字任务号会被拒 400（P4-15 四步联调实测）。这里前置拦截，避免无意义请求与日志噪音；
+     * 真实流程里任务号来自服务端下发的数字 taskId，出现非数字说明契约对不上，必须暴露出来。 */
+    if (!patrol_task_id_is_numeric(task->id)) {
+        LOG_ERROR("任务号不是数字（服务端 taskId 为 Long），跳过状态上报：%s", task->id);
+        return WD_ERR_PARAM;
     }
     
     const wd_config_t *cfg = config_get();

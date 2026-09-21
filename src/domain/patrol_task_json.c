@@ -1,146 +1,145 @@
 /**
  * @file patrol_task_json.c
- * @brief 巡检任务的 JSON 解析与序列化（P4-10 批次2c 从 patrol_task.c 拆出，只搬不改）。
+ * @brief 巡检任务的 JSON 解析与序列化（P4-10 批次2c 从 patrol_task.c 拆出）。
  *
- * 依赖 patrol_task.c 提供的公开构造/类型转换 API，不改动任何对外行为。
+ * P4-16 改动：解析改用 **cJSON**，对齐服务端真实契约 `TaskMessage`
+ * （`{taskId:Long, taskType:Short, targetDistance:Float, planId, warehouseId}`，
+ * **没有 actions 数组**），同时兼容带 `actions` 数组的报文（与 `patrol_task_to_json` 对称）
+ * 以及字符串形式的 `taskId` / `taskType`。
+ *
+ * 旧的手写解析有两处与服务端契约不符（P4-15 四步联调发现）：
+ * 1. `taskId` / `taskType` 在服务端是**数字**，旧助手只取引号字符串 →
+ *    id 退化成 "unknown"、name 退化成 "unnamed"，且默认动作也不会被加上（任务 0 动作）；
+ * 2. `actions` 是数组，旧助手只会取引号字符串 → 永远取不到。
  */
 
 #include "domain/patrol_task.h"
 #include "common/logger.h"
 #include "common/utils.h"
 #include "common/xmalloc.h"
+#include <cJSON.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/**
- * 简单的JSON字符串提取工具
- */
-static char *extract_json_string(const char *json, const char *key) {
-    if (!json || !key) return NULL;
-    
-    char search_key[256];
-    snprintf(search_key, sizeof(search_key), "\"%s\"", key);
-    
-    char *p = strstr(json, search_key);
-    if (!p) return NULL;
-    
-    p = strchr(p, ':');
-    if (!p) return NULL;
-    
-    char *start = strchr(p, '"');
-    if (!start) return NULL;
-    start++;
-    
-    char *end = strchr(start, '"');
-    if (!end) return NULL;
-    
-    size_t len = end - start;
-    char *val = xmalloc_try(len + 1);
-    if (!val) return NULL; /* P4-06：分配失败返回 NULL */
-    strncpy(val, start, len);
-    val[len] = '\0';
-    
-    return val;
+/** 服务端按 targetDistance 折算动作时的默认速度（与 device_mqtt.c 保持一致） */
+#define PATROL_DEFAULT_SPEED_CM_S 20.0f
+#define PATROL_FALLBACK_DURATION_MS 5000
+
+/** 取对象里的整数字段，兼容数字与字符串两种写法 */
+static int json_int_compat(const cJSON *obj, const char *key, int default_val) {
+    const cJSON *it = cJSON_GetObjectItemCaseSensitive((cJSON *)obj, key);
+    if (cJSON_IsNumber(it)) {
+        return it->valueint;
+    }
+    if (cJSON_IsString(it) && it->valuestring) {
+        return atoi(it->valuestring); // NOLINT(cert-err34-c)：解析失败即回落 default_val
+    }
+    return default_val;
 }
 
-/**
- * 提取JSON数字
- */
-static int extract_json_int(const char *json, const char *key, int default_val) {
-    if (!json || !key) return default_val;
-    
-    char search_key[256];
-    snprintf(search_key, sizeof(search_key), "\"%s\"", key);
-    
-    char *p = strstr(json, search_key);
-    if (!p) return default_val;
-    
-    p = strchr(p, ':');
-    if (!p) return default_val;
-    
-    while (*p && (*p == ':' || *p == ' ' || *p == '\t')) p++;
-    
-    return atoi(p);
+/** 取字符串字段；数字也接受（按十进制转字符串写入 out）；缺省时写 default_val */
+static void json_str_compat(const cJSON *obj, const char *key, char *out, size_t out_len,
+                            const char *default_val) {
+    const cJSON *it = cJSON_GetObjectItemCaseSensitive((cJSON *)obj, key);
+    if (cJSON_IsString(it) && it->valuestring && it->valuestring[0]) {
+        snprintf(out, out_len, "%s", it->valuestring);
+        return;
+    }
+    if (cJSON_IsNumber(it)) {
+        snprintf(out, out_len, "%lld", (long long)it->valuedouble);
+        return;
+    }
+    snprintf(out, out_len, "%s", default_val ? default_val : "");
 }
 
 /**
  * 从JSON字符串解析巡检任务
  */
 patrol_task_t *patrol_task_from_json(const char *json) {
-    if (!json) return NULL;
-    
-    char *id = extract_json_string(json, "taskId");
-    char *name = extract_json_string(json, "taskName");
-    
-    if (!id) {
-        id = extract_json_string(json, "id");
+    if (!json) {
+        return NULL;
     }
-    if (!name) {
-        name = extract_json_string(json, "taskType");
-        if (!name) {
-            name = extract_json_string(json, "name");
-        }
+
+    cJSON *root = cJSON_Parse(json);
+    if (!root) {
+        LOG_WARN("巡检任务 JSON 解析失败（不是合法 JSON）");
+        return NULL;
     }
-    
-    patrol_task_t *task = patrol_task_create(id ? id : "unknown", name ? name : "unnamed");
-    
-    if (id) xfree(id);
-    if (name) xfree(name);
-    
-    char *actions_str = extract_json_string(json, "actions");
-    if (!actions_str) {
-        char *task_type = extract_json_string(json, "taskType");
-        if (task_type) {
-            patrol_action_t default_action = {
-                .type = PATROL_ACTION_MOVE_FORWARD,
-                .speed = 50,
-                .duration_ms = 5000
-            };
-            patrol_task_add_action(task, &default_action);
-            xfree(task_type);
+    if (!cJSON_IsObject(root)) {
+        LOG_WARN("巡检任务 JSON 顶层不是对象");
+        cJSON_Delete(root);
+        return NULL;
+    }
+
+    char id_buf[32] = "";
+    json_str_compat(root, "taskId", id_buf, sizeof(id_buf), "");
+    if (id_buf[0] == '\0') {
+        json_str_compat(root, "id", id_buf, sizeof(id_buf), "unknown");
+    }
+
+    char name_buf[64] = "";
+    json_str_compat(root, "taskName", name_buf, sizeof(name_buf), "");
+    if (name_buf[0] == '\0') {
+        json_str_compat(root, "name", name_buf, sizeof(name_buf), "unnamed");
+    }
+
+    patrol_task_t *task = patrol_task_create(id_buf, name_buf);
+    if (!task) {
+        cJSON_Delete(root);
+        return NULL;
+    }
+
+    /* taskType：服务端是数字（0=计划 1=手动），也接受字符串 "PLAN"/"MANUAL" */
+    const cJSON *task_type = cJSON_GetObjectItemCaseSensitive(root, "taskType");
+    if (cJSON_IsNumber(task_type)) {
+        task->type = (task_type->valueint == 0) ? PATROL_TASK_TYPE_PLAN : PATROL_TASK_TYPE_MANUAL;
+    } else if (cJSON_IsString(task_type) && task_type->valuestring) {
+        task->type = (strcmp(task_type->valuestring, "PLAN") == 0) ? PATROL_TASK_TYPE_PLAN
+                                                                   : PATROL_TASK_TYPE_MANUAL;
+    }
+
+    /* 动作来源一：显式 actions 数组（与 patrol_task_to_json 对称；服务端当前不下发） */
+    const cJSON *actions = cJSON_GetObjectItemCaseSensitive(root, "actions");
+    if (cJSON_IsArray(actions)) {
+        const cJSON *item = NULL;
+        cJSON_ArrayForEach(item, (cJSON *)actions) {
+            if (task->action_count >= PATROL_TASK_MAX_ACTIONS) {
+                LOG_WARN("巡检任务动作数超过上限 %d，其余被忽略", PATROL_TASK_MAX_ACTIONS);
+                break;
+            }
+            patrol_action_t action = {0};
+            const cJSON *type = cJSON_GetObjectItemCaseSensitive((cJSON *)item, "type");
+            if (cJSON_IsString(type) && type->valuestring) {
+                action.type = patrol_action_type_from_string(type->valuestring);
+            }
+            action.speed = (uint8_t)json_int_compat(item, "speed", 50);
+            /* 兼容 duration_ms 与 duration 两种键名 */
+            action.duration_ms = (uint32_t)json_int_compat(
+                item, "duration_ms", json_int_compat(item, "duration", 1000));
+            action.servo_channel = (uint8_t)json_int_compat(item, "channel", 0);
+            action.servo_angle = (uint8_t)json_int_compat(item, "angle", 90);
+            patrol_task_add_action(task, &action);
         }
+        cJSON_Delete(root);
         return task;
     }
-    
-    char *p = actions_str;
-    while (*p && task->action_count < PATROL_TASK_MAX_ACTIONS) {
-        char *action_start = strchr(p, '{');
-        if (!action_start) break;
-        
-        char *action_end = strchr(action_start, '}');
-        if (!action_end) break;
-        
-        size_t action_len = action_end - action_start + 1;
-        char *action_str = xmalloc_try(action_len + 1);
-        if (!action_str) {
-            LOG_ERROR("分配动作串失败（内存不足），放弃本次任务解析");
-            patrol_task_free(task);
-            return NULL;
-        }
-        strncpy(action_str, action_start, action_len);
-        action_str[action_len] = '\0';
-        
-        patrol_action_t action = {0};
-        
-        char *type_str = extract_json_string(action_str, "type");
-        if (type_str) {
-            action.type = patrol_action_type_from_string(type_str);
-            xfree(type_str);
-        }
-        
-        action.speed = (uint8_t)extract_json_int(action_str, "speed", 50);
-        action.duration_ms = (uint32_t)extract_json_int(action_str, "duration", 1000);
-        action.servo_channel = (uint8_t)extract_json_int(action_str, "channel", 0);
-        action.servo_angle = (uint8_t)extract_json_int(action_str, "angle", 90);
-        
-        patrol_task_add_action(task, &action);
-        
-        xfree(action_str);
-        p = action_end + 1;
-    }
-    
-    xfree(actions_str);
+
+    /* 动作来源二：服务端 TaskMessage 契约——没有 actions，按 targetDistance 折算一个前进动作。
+     * 连目标距离也没有时退化为固定 5s 前进动作（保持历史行为，任务不至于 0 动作）。 */
+    const cJSON *distance_item = cJSON_GetObjectItemCaseSensitive(root, "targetDistance");
+    float distance = cJSON_IsNumber(distance_item) ? (float)distance_item->valuedouble : 0.0f;
+
+    patrol_action_t default_action = {
+        .type = PATROL_ACTION_MOVE_FORWARD,
+        .speed = 50,
+        .duration_ms = (distance > 0.0f)
+                           ? (uint32_t)((distance / PATROL_DEFAULT_SPEED_CM_S) * 1000.0f)
+                           : PATROL_FALLBACK_DURATION_MS,
+    };
+    patrol_task_add_action(task, &default_action);
+
+    cJSON_Delete(root);
     return task;
 }
 

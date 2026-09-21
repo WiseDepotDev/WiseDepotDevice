@@ -73,12 +73,27 @@ const char *patrol_action_type_to_string(patrol_action_type_t type) {
  */
 patrol_action_type_t patrol_action_type_from_string(const char *str) {
     if (!str) return PATROL_ACTION_UNKNOWN;
-    
+
+    /* P4-16：外部报文（MQTT / HTTP / 其他端）里的动作名大小写不统一，
+     * 例如上位机可能写 "MOVE_FORWARD" 或 "SCAN"。做大小写不敏感比较 + 少量别名，
+     * 避免静默变成 UNKNOWN（静默 UNKNOWN 会让任务"看起来执行了但什么都没做"）。 */
     for (size_t i = 0; i < sizeof(g_action_type_names) / sizeof(g_action_type_names[0]); i++) {
-        if (strcmp(g_action_type_names[i].name, str) == 0) {
+        if (strcasecmp(g_action_type_names[i].name, str) == 0) {
             return g_action_type_names[i].type;
         }
     }
+
+    if (strcasecmp(str, "scan") == 0 || strcasecmp(str, "rfid") == 0 ||
+        strcasecmp(str, "inventory") == 0) {
+        return PATROL_ACTION_RFID_SCAN;
+    }
+    if (strcasecmp(str, "forward") == 0) {
+        return PATROL_ACTION_MOVE_FORWARD;
+    }
+    if (strcasecmp(str, "backward") == 0) {
+        return PATROL_ACTION_MOVE_BACKWARD;
+    }
+
     return PATROL_ACTION_UNKNOWN;
 }
 
@@ -120,6 +135,21 @@ patrol_task_t *patrol_task_create(const char *id, const char *name) {
     task->error_message[0] = '\0';
     
     return task;
+}
+
+/**
+ * 判断任务号是否为纯十进制数字（服务端 taskId 为 Long，非数字会被拒 400）
+ */
+bool patrol_task_id_is_numeric(const char *id) {
+    if (!id || id[0] == '\0') {
+        return false;
+    }
+    for (const char *p = id; *p; p++) {
+        if (*p < '0' || *p > '9') {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**

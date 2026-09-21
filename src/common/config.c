@@ -39,6 +39,9 @@ static wd_config_t *g_config = NULL;
 #define DEFAULT_MOVE_SPEED_CM_S 19.7f // Calibrated speed (50% PWM -> 98.5cm/5s = 19.7cm/s)
 #define PERSISTENT_CONFIG_FILE "wise-device.dat"
 
+/* P4-16：跨端常量对齐的告警（定义见文件后部），前置声明以便 config_load 使用 */
+static void warn_if_heartbeat_too_slow(void);
+
 static char *trim(char *s) {
     if (!s) return NULL;
     while (isspace((unsigned char)*s)) s++;
@@ -326,7 +329,21 @@ wd_error_t config_load(const char *config_file) {
         return WD_ERR_PARAM;
     }
 
+    warn_if_heartbeat_too_slow();
+
     return 0;
+}
+
+/* P4-16：服务端 DeviceApplicationService.HEARTBEAT_TIMEOUT_SECONDS = 2（超过该秒数未收到心跳即置离线）。
+ * 心跳间隔必须**小于**它，否则设备状态会在"在线/离线"之间抖动（P4-15 四步联调实测：3s 心跳导致来回翻转）。
+ * 这里是跨端常量对齐的显式声明，不是配置项——服务端改阈值时必须同步改这里。 */
+#define WD_SERVER_HEARTBEAT_TIMEOUT_S 2
+
+static void warn_if_heartbeat_too_slow(void) {
+    if (g_config && g_config->heartbeat_interval >= WD_SERVER_HEARTBEAT_TIMEOUT_S) {
+        LOG_WARN("heartbeat_interval=%ds >= 服务端离线阈值 %ds，设备状态会抖动；请调小",
+                 g_config->heartbeat_interval, WD_SERVER_HEARTBEAT_TIMEOUT_S);
+    }
 }
 
 const char *config_signature_secret(void) {
@@ -348,6 +365,7 @@ wd_error_t config_update_from_json(const char *json_str) {
     
     item = cJSON_GetObjectItem(root, "heartbeatInterval");
     if (cJSON_IsNumber(item)) g_config->heartbeat_interval = item->valueint;
+    warn_if_heartbeat_too_slow();
     
     item = cJSON_GetObjectItem(root, "apiBaseUrl");
     if (cJSON_IsString(item)) {

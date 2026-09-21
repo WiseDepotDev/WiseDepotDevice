@@ -250,6 +250,13 @@ void device_run(void) {
     /* 关闭监视（100ms）：handler 只置 g_running=0，这里在普通上下文停调度器 */
     scheduler_add_task("ShutdownWatcher", shutdown_watcher, NULL, 100);
 
+    /* P4-16：HTTP 轮询兜底。此前 `patrol_service_run` 从未注册，
+     * 于是"MQTT 不可用时 rely on polling"只是日志里的承诺。
+     * patrol_service_run 是非阻塞调度任务体，间隔取远端下发的 task_poll_interval（秒，下限 1s）。 */
+    unsigned int patrol_poll_ms =
+        (unsigned int)((cfg->task_poll_interval > 0 ? cfg->task_poll_interval : 1) * 1000);
+    scheduler_add_task("PatrolPoll", patrol_service_run, NULL, patrol_poll_ms);
+
     LOG_INFO("Device service running...");
 
     // 5. Main Loop
