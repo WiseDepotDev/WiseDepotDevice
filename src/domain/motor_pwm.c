@@ -16,7 +16,7 @@
 /**
  * 写入 PCA9685 寄存器
  */
-int pca9685_write(uint8_t reg, uint8_t value) {
+wd_error_t pca9685_write(uint8_t reg, uint8_t value) {
     uint8_t buf[2] = {reg, value};
     if (write(g_motor_ctrl.i2c_fd, buf, 2) != 2) {
         return WD_ERR_IO;
@@ -41,7 +41,7 @@ int pca9685_read(uint8_t reg) {
 /**
  * 设置 PWM 频率
  */
-int pca9685_set_pwm_freq(uint16_t freq) {
+wd_error_t pca9685_set_pwm_freq(uint16_t freq) {
     /* 计算预分频值 */
     float prescale_val = 25000000.0f;   /* 25MHz 内部时钟 */
     prescale_val /= PWM_RESOLUTION;      /* 12位分辨率 */
@@ -82,7 +82,7 @@ int pca9685_set_pwm_freq(uint16_t freq) {
 /**
  * 设置 PWM 通道
  */
-int pca9685_set_pwm(uint8_t channel, uint16_t on, uint16_t off) {
+wd_error_t pca9685_set_pwm(uint8_t channel, uint16_t on, uint16_t off) {
     uint8_t reg = PCA9685_LED0_ON_L + 4 * channel;
     
     uint8_t buf[5];

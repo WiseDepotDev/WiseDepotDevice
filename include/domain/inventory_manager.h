@@ -2,6 +2,7 @@
 #define WISE_DEPOT_INVENTORY_MANAGER_H
 
 #include "domain/tag.h"
+#include "common/wd_error.h"
 #include <cJSON.h>
 #include <time.h>
 
@@ -62,7 +63,7 @@ void inventory_free_report(inventory_report_t *report);
 char *inventory_report_to_json(const inventory_report_t *report, const char *task_id);
 
 // Offline Cache Operations
-int inventory_cache_save(const inventory_report_t *report);
+wd_error_t inventory_cache_save(const inventory_report_t *report);
 char *inventory_cache_load(void);
 void inventory_cache_clear(void);
 

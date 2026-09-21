@@ -42,7 +42,7 @@ typedef struct {
 static LogHistory g_recent_logs[MAX_RECENT_LOGS];
 static int g_log_history_idx = 0;
 
-int logger_init(const char *log_file, log_level_t level) {
+wd_error_t logger_init(const char *log_file, log_level_t level) {
     pthread_mutex_lock(&g_log_mutex);
 
     g_log_level = level;

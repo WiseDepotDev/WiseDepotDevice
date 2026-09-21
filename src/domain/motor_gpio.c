@@ -18,7 +18,7 @@
 /**
  * 导出 GPIO 引脚
  */
-int gpio_export(int *pin) {
+wd_error_t gpio_export(int *pin) {
     // 尝试导出指定的引脚
     // 如果失败且是 EINVAL，尝试加上 Pi 5 的偏移量 (571 或 569)
     
@@ -107,7 +107,7 @@ int gpio_export(int *pin) {
 /**
  * 设置 GPIO 方向
  */
-int gpio_set_direction(int pin, bool output) {
+wd_error_t gpio_set_direction(int pin, bool output) {
     char path[64];
     snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/direction", pin);
     
@@ -131,7 +131,7 @@ int gpio_set_direction(int pin, bool output) {
 /**
  * 写入 GPIO 值
  */
-int gpio_write(int pin, bool value) {
+wd_error_t gpio_write(int pin, bool value) {
     char path[64];
     snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/value", pin);
     
@@ -156,7 +156,7 @@ int gpio_write(int pin, bool value) {
 /**
  * 取消导出 GPIO 引脚
  */
-int gpio_unexport(int pin) {
+wd_error_t gpio_unexport(int pin) {
     char path[64];
     snprintf(path, sizeof(path), "/sys/class/gpio/unexport");
     

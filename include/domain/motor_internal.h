@@ -15,6 +15,7 @@
 #define WISE_DEPOT_MOTOR_INTERNAL_H
 
 #include "domain/motor_controller.h"
+#include "common/wd_error.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -57,17 +58,17 @@ typedef struct {
 extern motor_ctrl_state_t g_motor_ctrl;
 
 /* ===== PCA9685 低层（motor_pwm.c） ===== */
-int pca9685_write(uint8_t reg, uint8_t value);
+wd_error_t pca9685_write(uint8_t reg, uint8_t value);
 int pca9685_read(uint8_t reg);
-int pca9685_set_pwm_freq(uint16_t freq);
-int pca9685_set_pwm(uint8_t channel, uint16_t on, uint16_t off);
+wd_error_t pca9685_set_pwm_freq(uint16_t freq);
+wd_error_t pca9685_set_pwm(uint8_t channel, uint16_t on, uint16_t off);
 int pca9685_set_duty_cycle(uint8_t channel, uint8_t duty_percent);
 int pca9685_set_level(uint8_t channel, bool level);
 
 /* ===== GPIO sysfs（motor_gpio.c） ===== */
-int gpio_export(int *pin);
-int gpio_set_direction(int pin, bool output);
-int gpio_write(int pin, bool value);
-int gpio_unexport(int pin);
+wd_error_t gpio_export(int *pin);
+wd_error_t gpio_set_direction(int pin, bool output);
+wd_error_t gpio_write(int pin, bool value);
+wd_error_t gpio_unexport(int pin);
 
 #endif // WISE_DEPOT_MOTOR_INTERNAL_H

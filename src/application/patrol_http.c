@@ -168,7 +168,7 @@ patrol_task_t *patrol_service_fetch_task(void) {
 /**
  * 上报任务执行结果到服务端
  */
-int patrol_service_report_result(const patrol_task_t *task) {
+wd_error_t patrol_service_report_result(const patrol_task_t *task) {
     if (!task) {
         return WD_ERR_PARAM;
     }

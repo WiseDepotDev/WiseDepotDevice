@@ -9,6 +9,7 @@
 #ifndef WISE_DEPOT_LOGGER_H
 #define WISE_DEPOT_LOGGER_H
 
+#include "common/wd_error.h"
 #include <stdarg.h>
 
 /* 日志级别定义 */
@@ -27,7 +28,7 @@ typedef enum {
  * @param level 最低日志级别
  * @return 0 成功，-1 失败
  */
-int logger_init(const char *log_file, log_level_t level);
+wd_error_t logger_init(const char *log_file, log_level_t level);
 
 /**
  * 重新打开日志文件 (用于日志轮转)

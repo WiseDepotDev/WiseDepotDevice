@@ -59,7 +59,7 @@ patrol_service_config_t patrol_service_get_default_config(void) {
 /**
  * 初始化巡检服务
  */
-int patrol_service_init(const patrol_service_config_t *config) {
+wd_error_t patrol_service_init(const patrol_service_config_t *config) {
     if (g_patrol_service.initialized) {
         LOG_WARN("Patrol service already initialized");
         return 0;
@@ -203,7 +203,7 @@ static void *patrol_task_thread_func(void *arg) {
  * - 返回 0：任务所有权**移交给服务**（服务负责执行后释放，或在 cleanup 时释放队列中的任务）；
  * - 返回 -1：服务**不接管**，调用方仍需自行释放 task（避免"失败后任务丢失/泄漏"）。
  */
-int patrol_service_start_task(patrol_task_t *task) {
+wd_error_t patrol_service_start_task(patrol_task_t *task) {
     if (!g_patrol_service.initialized) {
         LOG_ERROR("Patrol service not initialized");
         return WD_ERR_STATE;

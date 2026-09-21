@@ -281,7 +281,7 @@ char *inventory_report_to_json(const inventory_report_t *report, const char *tas
     return json_str;
 }
 
-int inventory_cache_save(const inventory_report_t *report) {
+wd_error_t inventory_cache_save(const inventory_report_t *report) {
     char *json = inventory_report_to_json(report, NULL); // Offline cache might not need task_id or we can add it later
     if (!json) return WD_ERR_NOMEM;
     

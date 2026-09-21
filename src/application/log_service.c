@@ -22,7 +22,7 @@
 #define UPLOAD_QUEUE_PREFIX "upload_queue_"
 #define LOG_MAX_SIZE (1024 * 1024) // 1MB
 
-int log_service_init(void) {
+wd_error_t log_service_init(void) {
     LOG_INFO("Log service initialized");
     return 0;
 }

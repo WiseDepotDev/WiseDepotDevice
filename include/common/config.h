@@ -10,6 +10,7 @@
 #define WISE_DEPOT_CONFIG_H
 
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <stdbool.h>
 
 /* 配置结构体 */
@@ -62,7 +63,7 @@ typedef struct {
  * @param config_file 配置文件路径 (可选)
  * @return 0 成功，-1 失败
  */
-int config_load(const char *config_file);
+wd_error_t config_load(const char *config_file);
 
 /**
  * 更新配置 (从 JSON 字符串)
@@ -70,14 +71,14 @@ int config_load(const char *config_file);
  * @param json_str JSON 格式的配置字符串
  * @return 0 成功，-1 失败
  */
-int config_update_from_json(const char *json_str);
+wd_error_t config_update_from_json(const char *json_str);
 
 /**
  * 保存配置到加密文件
  *
  * @return 0 成功，-1 失败
  */
-int config_save_encrypted(void);
+wd_error_t config_save_encrypted(void);
 
 /**
  * 安全删除旧配置文件
@@ -85,7 +86,7 @@ int config_save_encrypted(void);
  * @param file_path 文件路径
  * @return 0 成功，-1 失败
  */
-int config_secure_delete(const char *file_path);
+wd_error_t config_secure_delete(const char *file_path);
 
 /**
  * 获取全局配置实例 (只读)

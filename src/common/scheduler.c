@@ -43,14 +43,14 @@ static void handle_signal(int sig) {
     }
 }
 
-int scheduler_init(void) {
+wd_error_t scheduler_init(void) {
     g_scheduler.head = NULL;
     g_scheduler.running = 0;
     g_scheduler.default_resolution = 1000;
     return 0;
 }
 
-int scheduler_add_task(const char *name, scheduler_task_callback_t callback, void *context, unsigned int interval_ms) {
+wd_error_t scheduler_add_task(const char *name, scheduler_task_callback_t callback, void *context, unsigned int interval_ms) {
     if (!name || !callback || interval_ms == 0) return WD_ERR_PARAM;
     
     scheduler_task_t *new_task = (scheduler_task_t *)xcalloc_try(1, sizeof(scheduler_task_t));

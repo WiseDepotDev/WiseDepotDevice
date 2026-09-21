@@ -22,7 +22,7 @@ static uint16_t calculate_crc16(const uint8_t *data, size_t len) {
     return crc;
 }
 
-int rfid_parse_response(const uint8_t *buffer, size_t len, rfid_response_t *out_response) {
+wd_error_t rfid_parse_response(const uint8_t *buffer, size_t len, rfid_response_t *out_response) {
     if (!buffer || !out_response || len < 5) {
         return WD_ERR_PARAM;
     }

@@ -94,7 +94,7 @@ static char *extract_json_string(const char *json, const char *key) {
     return val;
 }
 
-int device_register(void) {
+wd_error_t device_register(void) {
     const wd_config_t *cfg = config_get();
     const device_info_t *info = device_info_get();
     
@@ -239,7 +239,7 @@ void device_service_set_tokens(const char *access_token, const char *refresh_tok
     }
 }
 
-int device_refresh_token(void) {
+wd_error_t device_refresh_token(void) {
     const wd_config_t *cfg = config_get();
     
     if (!g_refresh_token) {

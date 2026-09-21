@@ -9,6 +9,7 @@
 #ifndef WISE_DEPOT_SERVER_DISCOVERY_H
 #define WISE_DEPOT_SERVER_DISCOVERY_H
 
+#include "common/wd_error.h"
 #include <stdbool.h>
 
 /**
@@ -16,7 +17,7 @@
  *
  * @return 0 成功，-1 失败
  */
-int server_discovery_init(void);
+wd_error_t server_discovery_init(void);
 
 /**
  * 启动服务发现广播 (阻塞直到发现服务端或超时)
@@ -24,7 +25,7 @@ int server_discovery_init(void);
  * @param timeout_sec 超时时间 (秒)，0 表示无限等待
  * @return 0 成功发现并更新配置，-1 失败/超时
  */
-int server_discovery_start(int timeout_sec);
+wd_error_t server_discovery_start(int timeout_sec);
 
 /**
  * 停止服务发现

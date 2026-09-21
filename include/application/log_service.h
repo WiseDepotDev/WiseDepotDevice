@@ -1,3 +1,4 @@
+#include "common/wd_error.h"
 /**
  * 日志上传服务模块头文件
  *
@@ -14,7 +15,7 @@
  *
  * @return 0 成功，-1 失败
  */
-int log_service_init(void);
+wd_error_t log_service_init(void);
 
 /**
  * 执行日志上传任务

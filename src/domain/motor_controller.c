@@ -82,7 +82,7 @@ motor_controller_config_t motor_controller_get_default_config(void) {
 /**
  * 初始化电机控制器
  */
-int motor_controller_init(const motor_controller_config_t *config) {
+wd_error_t motor_controller_init(const motor_controller_config_t *config) {
     if (g_motor_ctrl.initialized) {
         LOG_WARN("Motor controller already initialized");
         return 0;

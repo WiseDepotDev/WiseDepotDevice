@@ -13,7 +13,7 @@
 /**
  * 设置单个电机运行状态
  */
-int motor_run(motor_id_t motor, motor_direction_t direction, uint8_t speed) {
+wd_error_t motor_run(motor_id_t motor, motor_direction_t direction, uint8_t speed) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
         return WD_ERR_STATE;
@@ -114,7 +114,7 @@ int motor_run(motor_id_t motor, motor_direction_t direction, uint8_t speed) {
 /**
  * 停止单个电机
  */
-int motor_stop(motor_id_t motor) {
+wd_error_t motor_stop(motor_id_t motor) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
         return WD_ERR_STATE;
@@ -140,7 +140,7 @@ int motor_stop(motor_id_t motor) {
 /**
  * 停止所有电机
  */
-int motor_stop_all(void) {
+wd_error_t motor_stop_all(void) {
     for (int i = 0; i < MOTOR_COUNT; i++) {
         int rc = motor_stop(i);
         if (rc < 0) {
@@ -153,7 +153,7 @@ int motor_stop_all(void) {
 /**
  * 执行移动动作 (阻塞)
  */
-int motor_move(move_direction_t direction, uint8_t speed, uint32_t duration_ms) {
+wd_error_t motor_move(move_direction_t direction, uint8_t speed, uint32_t duration_ms) {
     int rc = motor_move_async(direction, speed);
     if (rc < 0) {
         return (wd_error_t)rc;
@@ -172,7 +172,7 @@ int motor_move(move_direction_t direction, uint8_t speed, uint32_t duration_ms) 
 /**
  * 执行移动动作 (不阻塞)
  */
-int motor_move_async(move_direction_t direction, uint8_t speed) {
+wd_error_t motor_move_async(move_direction_t direction, uint8_t speed) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
         return WD_ERR_STATE;
@@ -275,7 +275,7 @@ int motor_move_async(move_direction_t direction, uint8_t speed) {
 /**
  * 设置舵机角度
  */
-int servo_set_angle(uint8_t channel, uint8_t angle) {
+wd_error_t servo_set_angle(uint8_t channel, uint8_t angle) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
         return WD_ERR_STATE;

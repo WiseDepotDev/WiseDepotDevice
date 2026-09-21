@@ -12,6 +12,7 @@
 #define WISE_DEPOT_PATROL_SERVICE_H
 
 #include "domain/patrol_task.h"
+#include "common/wd_error.h"
 #include <stdbool.h>
 
 /**
@@ -29,7 +30,7 @@ typedef struct {
  * @param config 服务配置 (NULL则使用默认配置)
  * @return 0 成功，-1 失败
  */
-int patrol_service_init(const patrol_service_config_t *config);
+wd_error_t patrol_service_init(const patrol_service_config_t *config);
 
 /**
  * 从服务端获取待执行的巡检任务
@@ -51,7 +52,7 @@ int patrol_service_execute_task(void);
  * @param task 已完成的任务
  * @return 0 成功，-1 失败
  */
-int patrol_service_report_result(const patrol_task_t *task);
+wd_error_t patrol_service_report_result(const patrol_task_t *task);
 
 /**
  * 巡检服务主循环 (由调度器调用)
@@ -104,6 +105,6 @@ const patrol_task_t *patrol_service_get_current_task(void);
  * @param task 任务指针 (该函数会接管 task 的内存所有权)
  * @return 0 成功，-1 失败 (任务正在执行或 task 为 NULL)
  */
-int patrol_service_start_task(patrol_task_t *task);
+wd_error_t patrol_service_start_task(patrol_task_t *task);
 
 #endif // WISE_DEPOT_PATROL_SERVICE_H

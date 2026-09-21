@@ -49,7 +49,7 @@ char *g_refresh_token = NULL;
 
 
 
-int device_service_init(void) {
+wd_error_t device_service_init(void) {
     LOG_INFO("Device service initialized (v%s)", DEVICE_VERSION);
     if (scheduler_init() != 0) {
         LOG_ERROR("Failed to init scheduler");

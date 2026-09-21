@@ -9,6 +9,7 @@
 #ifndef WISE_DEPOT_SCHEDULER_H
 #define WISE_DEPOT_SCHEDULER_H
 
+#include "common/wd_error.h"
 #include <stddef.h>
 #include <stdbool.h>
 
@@ -36,7 +37,7 @@ typedef struct scheduler_task_t {
  *
  * @return 0 成功，-1 失败
  */
-int scheduler_init(void);
+wd_error_t scheduler_init(void);
 
 /**
  * 添加任务
@@ -47,7 +48,7 @@ int scheduler_init(void);
  * @param interval_ms 执行间隔 (毫秒)
  * @return 0 成功，-1 失败
  */
-int scheduler_add_task(const char *name, scheduler_task_callback_t callback, void *context, unsigned int interval_ms);
+wd_error_t scheduler_add_task(const char *name, scheduler_task_callback_t callback, void *context, unsigned int interval_ms);
 
 /**
  * 运行调度器 (阻塞直到 scheduler_stop 被调用)

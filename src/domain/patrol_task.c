@@ -125,7 +125,7 @@ patrol_task_t *patrol_task_create(const char *id, const char *name) {
 /**
  * 向任务添加动作
  */
-int patrol_task_add_action(patrol_task_t *task, const patrol_action_t *action) {
+wd_error_t patrol_task_add_action(patrol_task_t *task, const patrol_action_t *action) {
     if (!task || !action) {
         return WD_ERR_PARAM;
     }
@@ -244,7 +244,7 @@ static int execute_action(const patrol_action_t *action) {
 /**
  * 执行巡检任务
  */
-int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, void *context) {
+wd_error_t patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, void *context) {
     if (!task) {
         return WD_ERR_PARAM;
     }
@@ -325,7 +325,7 @@ int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, vo
 /**
  * 取消巡检任务
  */
-int patrol_task_cancel(patrol_task_t *task) {
+wd_error_t patrol_task_cancel(patrol_task_t *task) {
     if (!task) {
         return WD_ERR_PARAM;
     }

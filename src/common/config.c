@@ -167,7 +167,7 @@ static int config_init_defaults(void) {
 /* P4-08：远端配置拉取已迁出 common 层 → application 层的 config_service_fetch_remote()。
  * 本文件（common/config.c）**不再依赖 infrastructure**，只负责本地配置的装载与生命周期。 */
 
-int config_load(const char *config_file) {
+wd_error_t config_load(const char *config_file) {
     if (config_init_defaults() != 0) {
         return WD_ERR_NOMEM;
     }
@@ -272,7 +272,7 @@ const char *config_signature_secret(void) {
     return g_config ? g_config->signature_secret : NULL;
 }
 
-int config_update_from_json(const char *json_str) {
+wd_error_t config_update_from_json(const char *json_str) {
     if (!g_config && config_init_defaults() != 0) {
         return WD_ERR_NOMEM;
     }
@@ -342,7 +342,7 @@ int config_update_from_json(const char *json_str) {
     return 0;
 }
 
-int config_save_encrypted(void) {
+wd_error_t config_save_encrypted(void) {
     if (!g_config) return WD_ERR_STATE;
     
     cJSON *root = cJSON_CreateObject();
@@ -390,7 +390,7 @@ int config_save_encrypted(void) {
     return 0;
 }
 
-int config_secure_delete(const char *file_path) {
+wd_error_t config_secure_delete(const char *file_path) {
     if (access(file_path, F_OK) != 0) return 0; // File doesn't exist
     
     struct stat st;

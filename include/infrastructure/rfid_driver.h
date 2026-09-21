@@ -8,6 +8,7 @@
 /* P4-09：标签值对象已下沉到 domain（include/domain/tag.h），驱动层反向引用它 ——
  * 依赖方向为 infrastructure → domain，domain 不再依赖 infrastructure。 */
 #include "domain/tag.h"
+#include "common/wd_error.h"
 
 // Configuration
 typedef struct {
@@ -18,7 +19,7 @@ typedef struct {
 } rfid_config_t;
 
 // Initialize the RFID reader
-int rfid_init(const rfid_config_t *config);
+wd_error_t rfid_init(const rfid_config_t *config);
 
 // Close the RFID reader
 void rfid_close(void);

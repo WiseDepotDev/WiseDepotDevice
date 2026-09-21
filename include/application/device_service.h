@@ -1,3 +1,4 @@
+#include "common/wd_error.h"
 /**
  * 设备服务模块头文件
  *
@@ -14,14 +15,14 @@
  *
  * @return 0 成功，-1 失败
  */
-int device_service_init(void);
+wd_error_t device_service_init(void);
 
 /**
  * 执行设备注册流程
  *
  * @return 0 成功，-1 失败
  */
-int device_register(void);
+wd_error_t device_register(void);
 
 /**
  * 执行心跳上报流程
@@ -80,6 +81,6 @@ void device_service_set_tokens(const char *access_token, const char *refresh_tok
  *
  * @return 0 成功，-1 失败
  */
-int device_refresh_token(void);
+wd_error_t device_refresh_token(void);
 
 #endif // WISE_DEPOT_DEVICE_SERVICE_H

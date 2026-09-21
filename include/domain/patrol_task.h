@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "domain/motor_controller.h"
+#include "common/wd_error.h"
 
 /* 最大任务名称长度 */
 #define PATROL_TASK_NAME_MAX_LEN 64
@@ -130,7 +131,7 @@ patrol_task_t *patrol_task_create(const char *id, const char *name);
  * @param action 动作结构体
  * @return 0 成功，-1 失败 (任务已满)
  */
-int patrol_task_add_action(patrol_task_t *task, const patrol_action_t *action);
+wd_error_t patrol_task_add_action(patrol_task_t *task, const patrol_action_t *action);
 
 /**
  * 执行巡检任务
@@ -140,7 +141,7 @@ int patrol_task_add_action(patrol_task_t *task, const patrol_action_t *action);
  * @param context 回调上下文
  * @return 0 成功，-1 失败
  */
-int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, void *context);
+wd_error_t patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, void *context);
 
 /**
  * 取消巡检任务
@@ -148,7 +149,7 @@ int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, vo
  * @param task 任务指针
  * @return 0 成功，-1 失败
  */
-int patrol_task_cancel(patrol_task_t *task);
+wd_error_t patrol_task_cancel(patrol_task_t *task);
 
 /**
  * 释放巡检任务资源

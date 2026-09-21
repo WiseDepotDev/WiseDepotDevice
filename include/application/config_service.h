@@ -1,3 +1,4 @@
+#include "common/wd_error.h"
 /**
  * 配置服务模块头文件
  *
@@ -14,7 +15,7 @@
  *
  * @return 0 成功，-1 失败
  */
-int config_service_init(void);
+wd_error_t config_service_init(void);
 
 /**
  * 从服务端拉取配置并合并（启动阶段的一次性拉取；P4-08 从 common 层迁入）

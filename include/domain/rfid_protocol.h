@@ -1,6 +1,7 @@
 #ifndef WISE_DEPOT_RFID_PROTOCOL_H
 #define WISE_DEPOT_RFID_PROTOCOL_H
 
+#include "common/wd_error.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -17,7 +18,7 @@ typedef struct {
 
 // Parse a raw response buffer into a structured response
 // Returns 0 on success, -1 on error
-int rfid_parse_response(const uint8_t *buffer, size_t len, rfid_response_t *out_response);
+wd_error_t rfid_parse_response(const uint8_t *buffer, size_t len, rfid_response_t *out_response);
 
 // Free the data buffer in response if allocated
 void rfid_free_response(rfid_response_t *response);

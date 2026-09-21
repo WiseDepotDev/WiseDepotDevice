@@ -30,7 +30,7 @@
 static int sock_fd = -1;
 static struct sockaddr_in broadcast_addr;
 
-int server_discovery_init(void) {
+wd_error_t server_discovery_init(void) {
     // 创建 UDP socket
     if ((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         LOG_ERROR("Failed to create socket: %s", strerror(errno));
@@ -113,7 +113,7 @@ static int verify_and_save_server(const char *response_json) {
     return WD_ERR_PARAM;
 }
 
-int server_discovery_start(int timeout_sec) {
+wd_error_t server_discovery_start(int timeout_sec) {
     if (sock_fd < 0) {
         int init_rc = server_discovery_init();
         if (init_rc < 0) return (wd_error_t)init_rc;

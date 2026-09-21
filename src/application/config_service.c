@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-int config_service_init(void) {
+wd_error_t config_service_init(void) {
     LOG_INFO("wd_config_t service initialized");
     return 0;
 }

@@ -161,7 +161,7 @@ static int send_command(uint8_t addr, uint8_t cmd, const uint8_t *data, size_t d
     return resp_len_byte + 1; // Total length
 }
 
-int rfid_init(const rfid_config_t *config) {
+wd_error_t rfid_init(const rfid_config_t *config) {
     if (!config) return WD_ERR_PARAM;
     current_config = *config;
 

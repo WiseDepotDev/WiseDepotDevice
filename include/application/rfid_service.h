@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include "domain/tag.h"
 #include "domain/inventory_manager.h"
+#include "common/wd_error.h"
 
 typedef struct {
     char serial_port[64];
@@ -12,12 +13,12 @@ typedef struct {
     const char *mqtt_topic;
 } rfid_service_config_t;
 
-int rfid_service_init(const rfid_service_config_t *config);
+wd_error_t rfid_service_init(const rfid_service_config_t *config);
 void rfid_service_cleanup(void);
 
 // Trigger a full inventory cycle: Scan -> Fetch Expected -> Compare -> Report
 // @param task_id Optional task ID to associate the report with a specific patrol task. Can be NULL.
-int rfid_service_run_cycle(const char *task_id);
+wd_error_t rfid_service_run_cycle(const char *task_id);
 
 // Check if service is busy
 bool rfid_service_is_busy(void);

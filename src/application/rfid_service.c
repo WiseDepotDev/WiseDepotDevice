@@ -21,7 +21,7 @@ static bool is_initialized = false;
 static bool is_busy = false;
 static pthread_mutex_t service_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int rfid_service_init(const rfid_service_config_t *config) {
+wd_error_t rfid_service_init(const rfid_service_config_t *config) {
     if (!config) return WD_ERR_PARAM;
     
     pthread_mutex_lock(&service_mutex);
@@ -218,7 +218,7 @@ void rfid_service_upload_inspection_report(const inventory_report_t *report, con
     upload_report(report, task_id);
 }
 
-int rfid_service_run_cycle(const char *task_id) {
+wd_error_t rfid_service_run_cycle(const char *task_id) {
     pthread_mutex_lock(&service_mutex);
     if (!is_initialized || is_busy) {
         pthread_mutex_unlock(&service_mutex);
