@@ -1,5 +1,5 @@
-#ifndef RFID_PROTOCOL_H
-#define RFID_PROTOCOL_H
+#ifndef WISE_DEPOT_RFID_PROTOCOL_H
+#define WISE_DEPOT_RFID_PROTOCOL_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -22,4 +22,4 @@ int rfid_parse_response(const uint8_t *buffer, size_t len, rfid_response_t *out_
 // Free the data buffer in response if allocated
 void rfid_free_response(rfid_response_t *response);
 
-#endif // RFID_PROTOCOL_H
+#endif // WISE_DEPOT_RFID_PROTOCOL_H

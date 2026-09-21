@@ -106,6 +106,13 @@ const Config *config_get(void);
 const char *config_signature_secret(void);
 
 /**
+ * 覆盖服务端地址（服务发现成功后回写配置；P4-10：原先只在调用方函数体内 extern）
+ *
+ * @param url 新的服务端地址（NULL 忽略）
+ */
+void config_set_server_url(const char *url);
+
+/**
  * 释放配置资源
  */
 void config_free(void);

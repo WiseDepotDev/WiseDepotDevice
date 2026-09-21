@@ -1,5 +1,5 @@
-#ifndef RFID_DRIVER_H
-#define RFID_DRIVER_H
+#ifndef WISE_DEPOT_RFID_DRIVER_H
+#define WISE_DEPOT_RFID_DRIVER_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -35,4 +35,4 @@ int rfid_read_data(const uint8_t *epc, uint8_t epc_len,
                    uint8_t mem_bank, uint8_t start_addr, uint8_t word_count, 
                    uint8_t *out_data);
 
-#endif // RFID_DRIVER_H
+#endif // WISE_DEPOT_RFID_DRIVER_H

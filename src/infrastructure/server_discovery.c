@@ -102,7 +102,6 @@ static int verify_and_save_server(const char *response_json) {
         LOG_INFO("Discovered server at: %s", url);
         
         // Update config with new server URL
-        extern void config_set_server_url(const char *url);
         config_set_server_url(url);
         
         cJSON_Delete(root);
@@ -156,7 +155,6 @@ int server_discovery_start(int timeout_sec) {
 
     const char *fallback = getenv("WISE_FALLBACK_SERVER_URL");
     if (fallback && fallback[0] != '\0') {
-        extern void config_set_server_url(const char *url);
         config_set_server_url(fallback);
         LOG_INFO("Fallback server URL set from WISE_FALLBACK_SERVER_URL: %s", fallback);
         return 0;

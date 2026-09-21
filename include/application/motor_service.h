@@ -1,5 +1,5 @@
-#ifndef MOTOR_SERVICE_H
-#define MOTOR_SERVICE_H
+#ifndef WISE_DEPOT_MOTOR_SERVICE_H
+#define WISE_DEPOT_MOTOR_SERVICE_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -55,4 +55,4 @@ int motor_service_stop_all(void);
  */
 int motor_get_status(void);
 
-#endif // MOTOR_SERVICE_H
+#endif // WISE_DEPOT_MOTOR_SERVICE_H

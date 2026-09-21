@@ -1,5 +1,5 @@
-#ifndef INVENTORY_MANAGER_H
-#define INVENTORY_MANAGER_H
+#ifndef WISE_DEPOT_INVENTORY_MANAGER_H
+#define WISE_DEPOT_INVENTORY_MANAGER_H
 
 #include "domain/tag.h"
 #include <cJSON.h>
@@ -66,4 +66,4 @@ int inventory_cache_save(const inventory_report_t *report);
 char *inventory_cache_load(void);
 void inventory_cache_clear(void);
 
-#endif // INVENTORY_MANAGER_H
+#endif // WISE_DEPOT_INVENTORY_MANAGER_H

@@ -7,6 +7,7 @@
  */
 
 #include "application/config_service.h"
+#include "application/device_service.h"
 #include "common/config.h"
 #include "common/logger.h"
 #include "infrastructure/http_client.h"
@@ -155,8 +156,7 @@ void config_fetch_task(void *ctx) {
     // 
     // 让我们先修改 headers 数组大小。
     
-    // 获取 Token
-    extern char *device_service_get_token(void);
+    // 获取 Token（声明见 application/device_service.h）
     char *token = device_service_get_token();
     
     // 构造签名 Query

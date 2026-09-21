@@ -1,5 +1,5 @@
-#ifndef RFID_SERVICE_H
-#define RFID_SERVICE_H
+#ifndef WISE_DEPOT_RFID_SERVICE_H
+#define WISE_DEPOT_RFID_SERVICE_H
 
 #include <stdbool.h>
 #include "domain/tag.h"
@@ -31,4 +31,4 @@ int rfid_service_scan_only(rfid_tag_t *tags, int max_count);
 /** 上传巡检报告到服务端（服务端会分发给手机展示差异列表） */
 void rfid_service_upload_inspection_report(const inventory_report_t *report, const char *task_id);
 
-#endif // RFID_SERVICE_H
+#endif // WISE_DEPOT_RFID_SERVICE_H
