@@ -8,6 +8,7 @@
 
 #include "common/config.h"
 #include "common/logger.h"
+#include "application/config_service.h"
 #include "application/device_service.h"
 #include "domain/motor_controller.h"
 #include <stdio.h>
@@ -50,8 +51,8 @@ int main(int argc, char *argv[]) {
         LOG_WARN("Failed to load config (Env/File), using defaults");
     }
 
-    // 远端配置拉取：与本地加载分离，失败不影响启动（P4-02 拆出，P4-08 将迁至 application 层）
-    if (config_fetch_remote() != 0) {
+    // 远端配置拉取：与本地加载分离，失败不影响启动（P4-02 拆出；P4-08 已迁至 application 层）
+    if (config_service_fetch_remote() != 0) {
         LOG_WARN("Remote config unavailable, continue with local config");
     }
     

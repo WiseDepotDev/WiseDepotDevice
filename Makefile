@@ -25,7 +25,7 @@ LIB_OBJS = $(filter-out obj/main.o,$(OBJS))
 TARGET = bin/wise-device
 TEST_TARGET = bin/test_runner
 
-.PHONY: all debug release clean check test check-asan check-tsan check-mqtt directories coverage
+.PHONY: all debug release clean check test check-asan check-tsan check-mqtt check-layers directories coverage
 
 all: debug
 
@@ -87,6 +87,16 @@ check-mqtt: CFLAGS = $(CFLAGS_DEBUG)
 check-mqtt: directories $(LIB_OBJS)
 	$(CC) $(CFLAGS) -o bin/mqtt_integration test/integration/mqtt_integration.c $(LIB_OBJS) $(LDFLAGS)
 	bash test/integration/run_mqtt_integration.sh
+
+# 分层围栏（P4-08）：用可执行的规则防止分层退化
+# 已成立的三条：common 不依赖 infrastructure / common 不依赖 application / domain 不依赖 application。
+# 待 P4-09 完成后追加第四条：domain 不依赖 infrastructure
+#（当前 include/domain/inventory_manager.h 仍 include "infrastructure/rfid_driver.h"）。
+check-layers:
+	@if grep -rn '#include "infrastructure/' src/common include/common; then echo "FAIL: common 层不得依赖 infrastructure"; exit 1; fi
+	@if grep -rn '#include "application/' src/common include/common; then echo "FAIL: common 层不得依赖 application"; exit 1; fi
+	@if grep -rn '#include "application/' src/domain include/domain; then echo "FAIL: domain 层不得依赖 application"; exit 1; fi
+	@echo "layer check OK: common->infrastructure=0, common->application=0, domain->application=0"
 
 # 代码覆盖率 (需要 lcov)
 coverage: CFLAGS = $(CFLAGS_DEBUG) --coverage

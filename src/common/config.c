@@ -163,41 +163,8 @@ static int config_init_defaults(void) {
     return 0;
 }
 
-/* 远端配置拉取需要 HTTP 能力；按 P4-08 规划，该能力最终应迁到 application 层，
- * 本函数即迁移前的过渡点（common 层内唯一保留的 infrastructure 依赖）。 */
-#include "infrastructure/http_client.h"
-
-int config_fetch_remote(void) {
-    if (!g_config && config_init_defaults() != 0) {
-        return -1;
-    }
-    if (!g_config->server_url || !g_config->device_id) {
-        LOG_WARN("Skip remote config: server_url or device_id missing");
-        return -1;
-    }
-
-    /* URL 形如：SERVER_URL + api_base_url + /config?deviceId=...&version=... */
-    char url[1024];
-    snprintf(url, sizeof(url), "%s%s/config?deviceId=%s&version=%s",
-             g_config->server_url, g_config->api_base_url, g_config->device_id, g_config->version);
-
-    LOG_INFO("Fetching config from: %s", url);
-    HttpResponse *res = http_get(url, NULL, 0);
-    if (!res) {
-        LOG_WARN("Failed to connect to config server");
-        return -1;
-    }
-
-    int rc = -1;
-    if (res->status_code == 200 && res->body) {
-        LOG_INFO("Config fetched successfully");
-        rc = config_update_from_json(res->body);
-    } else {
-        LOG_WARN("Failed to fetch config, status: %d", res->status_code);
-    }
-    http_response_free(res);
-    return rc;
-}
+/* P4-08：远端配置拉取已迁出 common 层 → application 层的 config_service_fetch_remote()。
+ * 本文件（common/config.c）**不再依赖 infrastructure**，只负责本地配置的装载与生命周期。 */
 
 int config_load(const char *config_file) {
     if (config_init_defaults() != 0) {
@@ -378,6 +345,10 @@ int config_save_encrypted(void) {
     if (!g_config) return -1;
     
     cJSON *root = cJSON_CreateObject();
+    if (!root) {
+        LOG_ERROR("创建配置 JSON 对象失败（内存不足）");
+        return -1;
+    }
     cJSON_AddStringToObject(root, "server_url", g_config->server_url);
     cJSON_AddStringToObject(root, "device_id", g_config->device_id);
     cJSON_AddNumberToObject(root, "heartbeatInterval", g_config->heartbeat_interval);
@@ -393,6 +364,11 @@ int config_save_encrypted(void) {
     cJSON_AddNumberToObject(root, "motor_trim_d", g_config->motor_trim_d);
     
     char *json_str = cJSON_PrintUnformatted(root);
+    if (!json_str) {
+        LOG_ERROR("序列化配置 JSON 失败（内存不足）");
+        cJSON_Delete(root);
+        return -1;
+    }
     
     // 简单加密模拟 (实际应使用 OpenSSL AES)
     // 这里为了演示，只做简单处理，或者直接保存 JSON
@@ -406,7 +382,9 @@ int config_save_encrypted(void) {
         LOG_ERROR("Failed to write persistent config");
     }
     
-    xfree(json_str);
+    /* cJSON_PrintUnformatted 用 malloc 分配 → 必须用 free；
+     * 用 xfree 会破坏本模块的分配计数（该块并未计入 g_allocation_count）。 */
+    free(json_str);
     cJSON_Delete(root);
     return 0;
 }

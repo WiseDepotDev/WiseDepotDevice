@@ -22,6 +22,43 @@ int config_service_init(void) {
     return 0;
 }
 
+/**
+ * 启动阶段的一次性远端配置拉取（P4-08：由 common/config.c 迁入）
+ *
+ * 与 config_fetch_task() 的分工：本函数在设备尚未注册、没有 Token 时做"最佳努力"拉取，
+ * 因此不带签名/鉴权头；带签名与 Token 的定时拉取仍由 config_fetch_task() 负责。
+ * 失败只告警，不影响启动（配置保持本地值）。
+ */
+int config_service_fetch_remote(void) {
+    const Config *cfg = config_get();
+    if (!cfg || !cfg->server_url || !cfg->device_id) {
+        LOG_WARN("Skip remote config: server_url or device_id missing");
+        return -1;
+    }
+
+    /* URL 形如：SERVER_URL + api_base_url + /config?deviceId=...&version=... */
+    char url[1024];
+    snprintf(url, sizeof(url), "%s%s/config?deviceId=%s&version=%s",
+             cfg->server_url, cfg->api_base_url, cfg->device_id, cfg->version);
+
+    LOG_INFO("Fetching config from: %s", url);
+    HttpResponse *res = http_get(url, NULL, 0);
+    if (!res) {
+        LOG_WARN("Failed to connect to config server");
+        return -1;
+    }
+
+    int rc = -1;
+    if (res->status_code == 200 && res->body) {
+        LOG_INFO("Config fetched successfully");
+        rc = config_update_from_json(res->body);
+    } else {
+        LOG_WARN("Failed to fetch config, status: %d", res->status_code);
+    }
+    http_response_free(res);
+    return rc;
+}
+
 void config_fetch_task(void *ctx) {
     (void)ctx;
     const Config *cfg = config_get();

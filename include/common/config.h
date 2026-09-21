@@ -55,23 +55,14 @@ typedef struct {
  * 优先级: 环境变量 > 配置文件 > 默认值
  *
  * 本函数**只做本地 I/O**（环境变量 + 可选配置文件），不发起任何网络请求——
- * 远端配置拉取已拆到 config_fetch_remote()，由 application 层显式调用，
- * 以保证单元测试调用 config_load() 时不会产生网络副作用（P4-02）。
+ * 远端配置拉取已迁至 application 层的 `config_service_fetch_remote()`（见
+ * include/application/config_service.h），以保证单元测试调用 config_load() 时
+ * 不会产生网络副作用（P4-02），且 common 层不依赖 infrastructure（P4-08）。
  *
  * @param config_file 配置文件路径 (可选)
  * @return 0 成功，-1 失败
  */
 int config_load(const char *config_file);
-
-/**
- * 从服务端拉取配置并合并（可选步骤）
- *
- * 需要 server_url 与 device_id 已就绪；失败只记录告警、不改变已有配置。
- * 由 application 层（P4-08 规划迁至 application 层）在 config_load() 之后调用。
- *
- * @return 0 成功拉取并合并，-1 跳过或失败
- */
-int config_fetch_remote(void);
 
 /**
  * 更新配置 (从 JSON 字符串)
