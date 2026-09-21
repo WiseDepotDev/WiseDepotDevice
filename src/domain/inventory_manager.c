@@ -186,10 +186,10 @@ inventory_report_t *inventory_process_scan(const rfid_tag_t *scanned_tags, size_
             d->difference = diff;
             
             if (diff < 0) {
-                strcpy(d->status, "MISSING");
+                snprintf(d->status, sizeof(d->status), "%s", "MISSING"); /* P5-01：M-11 要求无容量参数的缓冲写为 0 */
                 report->loss_count += -diff;
             } else {
-                strcpy(d->status, "EXTRA");
+                snprintf(d->status, sizeof(d->status), "%s", "EXTRA");
             }
         }
     }
@@ -215,7 +215,7 @@ inventory_report_t *inventory_process_scan(const rfid_tag_t *scanned_tags, size_
             d->expectedQuantity = 0;
             d->scannedQuantity = 1;
             d->difference = 1;
-            strcpy(d->status, "UNKNOWN");
+            snprintf(d->status, sizeof(d->status), "%s", "UNKNOWN");
         }
     }
     
