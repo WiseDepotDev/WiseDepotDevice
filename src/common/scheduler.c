@@ -9,6 +9,7 @@
 #include "common/scheduler.h"
 #include "common/xmalloc.h"
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,18 +51,18 @@ int scheduler_init(void) {
 }
 
 int scheduler_add_task(const char *name, scheduler_task_callback_t callback, void *context, unsigned int interval_ms) {
-    if (!name || !callback || interval_ms == 0) return -1;
+    if (!name || !callback || interval_ms == 0) return WD_ERR_PARAM;
     
     scheduler_task_t *new_task = (scheduler_task_t *)xcalloc_try(1, sizeof(scheduler_task_t));
     if (!new_task) {
         LOG_ERROR("分配调度任务失败（内存不足）");
-        return -1;
+        return WD_ERR_NOMEM;
     }
     new_task->name = xstrdup_try(name);
     if (!new_task->name) {
         LOG_ERROR("分配调度任务名失败（内存不足）");
         xfree(new_task);
-        return -1;
+        return WD_ERR_NOMEM;
     }
     new_task->callback = callback;
     new_task->context = context;

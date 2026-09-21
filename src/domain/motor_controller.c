@@ -12,6 +12,7 @@
 #include "domain/motor_controller.h"
 #include "domain/motor_internal.h"
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -99,7 +100,7 @@ int motor_controller_init(const motor_controller_config_t *config) {
     g_motor_ctrl.i2c_fd = open(I2C_DEVICE_PATH, O_RDWR);
     if (g_motor_ctrl.i2c_fd < 0) {
         LOG_ERROR("Failed to open I2C device: %s", I2C_DEVICE_PATH);
-        return -1;
+        return WD_ERR_IO;
     }
     
     /* 设置 I2C 从机地址 */
@@ -107,7 +108,7 @@ int motor_controller_init(const motor_controller_config_t *config) {
         LOG_ERROR("Failed to set I2C slave address: 0x%02X", g_motor_ctrl.i2c_address);
         close(g_motor_ctrl.i2c_fd);
         g_motor_ctrl.i2c_fd = -1;
-        return -1;
+        return WD_ERR_IO;
     }
     
     /* 复位 PCA9685 */
@@ -115,7 +116,7 @@ int motor_controller_init(const motor_controller_config_t *config) {
         LOG_ERROR("Failed to reset PCA9685");
         close(g_motor_ctrl.i2c_fd);
         g_motor_ctrl.i2c_fd = -1;
-        return -1;
+        return WD_ERR_IO;
     }
     
     /* 设置频率 50Hz */
@@ -123,7 +124,7 @@ int motor_controller_init(const motor_controller_config_t *config) {
         LOG_ERROR("Failed to set PWM frequency");
         close(g_motor_ctrl.i2c_fd);
         g_motor_ctrl.i2c_fd = -1;
-        return -1;
+        return WD_ERR_IO;
     }
 
     /* 导出 GPIO 引脚 */

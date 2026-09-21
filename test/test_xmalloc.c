@@ -11,6 +11,7 @@
 #include "common/xmalloc.h"
 #include "domain/patrol_task.h"
 #include "domain/inventory_manager.h"
+#include "common/wd_error.h"
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -101,11 +102,11 @@ void test_business_path_degrades_on_oom(void) {
     assert(patrol_task_add_action(task, &action) == 0);
     patrol_task_free(task);
 
-    /* 3) 预期库存加载：管理器分配失败后必须返回 -1（而不是退出/继续写空指针） */
+    /* 3) 预期库存加载：管理器分配失败后必须返回 WD_ERR_NOMEM（而不是退出/继续写空指针；P4-11 具名化） */
     xmalloc_set_fail_after(0);
     inventory_mgr_init(); /* 内部首次分配被注入失败 */
     int rc = inventory_load_expected("{\"header\":{},\"payload\":{\"code\":\"RES-0000\",\"data\":[]}}");
-    assert(rc == -1);
+    assert(rc == WD_ERR_NOMEM);
     xmalloc_clear_fail_after();
 
     /* 恢复后仍可用（证明失败没有破坏全局状态） */

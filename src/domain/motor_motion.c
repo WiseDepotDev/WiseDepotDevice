@@ -5,6 +5,7 @@
 
 #include "domain/motor_internal.h"
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -15,12 +16,12 @@
 int motor_run(motor_id_t motor, motor_direction_t direction, uint8_t speed) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
-        return -1;
+        return WD_ERR_STATE;
     }
     
     if (motor >= MOTOR_COUNT) {
         LOG_ERROR("Invalid motor ID: %d", motor);
-        return -1;
+        return WD_ERR_PARAM;
     }
     
     if (speed > 100) {
@@ -101,7 +102,7 @@ int motor_run(motor_id_t motor, motor_direction_t direction, uint8_t speed) {
     /* 设置 PWM 占空比 (速度) */
     if (pca9685_set_duty_cycle(cfg->pwm_channel, (uint8_t)adjusted_speed) < 0) {
         LOG_ERROR("Failed to set PWM for motor %d", motor);
-        return -1;
+        return WD_ERR_IO;
     }
     
     LOG_DEBUG("Motor %d running: direction=%s, speed=%d%% (adj: %d%%)", 
@@ -116,12 +117,12 @@ int motor_run(motor_id_t motor, motor_direction_t direction, uint8_t speed) {
 int motor_stop(motor_id_t motor) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
-        return -1;
+        return WD_ERR_STATE;
     }
     
     if (motor >= MOTOR_COUNT) {
         LOG_ERROR("Invalid motor ID: %d", motor);
-        return -1;
+        return WD_ERR_PARAM;
     }
     
     motor_config_t *cfg = &g_motor_ctrl.config.motors[motor];
@@ -129,7 +130,7 @@ int motor_stop(motor_id_t motor) {
     /* 设置 PWM 占空比为 0 */
     if (pca9685_set_duty_cycle(cfg->pwm_channel, 0) < 0) {
         LOG_ERROR("Failed to stop motor %d", motor);
-        return -1;
+        return WD_ERR_IO;
     }
     
     LOG_DEBUG("Motor %d stopped", motor);
@@ -141,8 +142,9 @@ int motor_stop(motor_id_t motor) {
  */
 int motor_stop_all(void) {
     for (int i = 0; i < MOTOR_COUNT; i++) {
-        if (motor_stop(i) < 0) {
-            return -1;
+        int rc = motor_stop(i);
+        if (rc < 0) {
+            return (wd_error_t)rc;
         }
     }
     return 0;
@@ -152,8 +154,9 @@ int motor_stop_all(void) {
  * 执行移动动作 (阻塞)
  */
 int motor_move(move_direction_t direction, uint8_t speed, uint32_t duration_ms) {
-    if (motor_move_async(direction, speed) < 0) {
-        return -1;
+    int rc = motor_move_async(direction, speed);
+    if (rc < 0) {
+        return (wd_error_t)rc;
     }
     
     struct timespec ts = {
@@ -172,7 +175,7 @@ int motor_move(move_direction_t direction, uint8_t speed, uint32_t duration_ms) 
 int motor_move_async(move_direction_t direction, uint8_t speed) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
-        return -1;
+        return WD_ERR_STATE;
     }
     
     if (speed > 100) {
@@ -263,7 +266,7 @@ int motor_move_async(move_direction_t direction, uint8_t speed) {
             
         default:
             LOG_ERROR("Unknown move direction: %d", direction);
-            return -1;
+            return WD_ERR_PARAM;
     }
     
     return 0;
@@ -275,7 +278,7 @@ int motor_move_async(move_direction_t direction, uint8_t speed) {
 int servo_set_angle(uint8_t channel, uint8_t angle) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
-        return -1;
+        return WD_ERR_STATE;
     }
     
     if (angle > 180) {
@@ -290,7 +293,7 @@ int servo_set_angle(uint8_t channel, uint8_t angle) {
     
     if (pca9685_set_pwm(channel, 0, pulse) < 0) {
         LOG_ERROR("Failed to set servo angle on channel %d", channel);
-        return -1;
+        return WD_ERR_IO;
     }
     
     LOG_DEBUG("Servo channel %d set to %d degrees (pulse: %d)", channel, angle, pulse);
@@ -303,7 +306,7 @@ int servo_set_angle(uint8_t channel, uint8_t angle) {
 int motor_move_distance(move_direction_t direction, float distance_cm) {
     if (!g_motor_ctrl.initialized) {
         LOG_ERROR("Motor controller not initialized");
-        return -1;
+        return WD_ERR_STATE;
     }
     
     /* P4-09：标定速度同样来自 init 注入的配置 */

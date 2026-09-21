@@ -13,6 +13,7 @@
 #include "common/logger.h"
 #include "common/utils.h"
 #include "common/xmalloc.h"
+#include "common/wd_error.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -126,12 +127,12 @@ patrol_task_t *patrol_task_create(const char *id, const char *name) {
  */
 int patrol_task_add_action(patrol_task_t *task, const patrol_action_t *action) {
     if (!task || !action) {
-        return -1;
+        return WD_ERR_PARAM;
     }
     
     if (task->action_count >= PATROL_TASK_MAX_ACTIONS) {
         LOG_ERROR("Patrol task action list is full");
-        return -1;
+        return WD_ERR_FULL;
     }
     
     memcpy(&task->actions[task->action_count], action, sizeof(patrol_action_t));
@@ -245,12 +246,12 @@ static int execute_action(const patrol_action_t *action) {
  */
 int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, void *context) {
     if (!task) {
-        return -1;
+        return WD_ERR_PARAM;
     }
     
     if (task->status == PATROL_TASK_STATUS_RUNNING) {
         LOG_WARN("Patrol task is already running: %s", task->id);
-        return -1;
+        return WD_ERR_STATE;
     }
     
     if (task->action_count == 0) {
@@ -271,7 +272,7 @@ int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, vo
             LOG_INFO("Patrol task cancelled: %s", task->id);
             task->status = PATROL_TASK_STATUS_CANCELLED;
             motor_stop_all();
-            return -1;
+            return WD_ERR_CANCELED;
         }
         
         task->current_action_index = i;
@@ -290,7 +291,7 @@ int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, vo
                 LOG_ERROR("Patrol task action failed in callback");
                 task->status = PATROL_TASK_STATUS_FAILED;
                 motor_stop_all();
-                return -1;
+                return WD_ERR_ACTION;
             }
             if (cb_res > 0) {
                 continue; // Handled by callback
@@ -303,7 +304,7 @@ int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, vo
             LOG_ERROR("Patrol task action failed: %s", task->error_message);
             task->status = PATROL_TASK_STATUS_FAILED;
             motor_stop_all();
-            return -1;
+            return WD_ERR_ACTION;
         }
     }
     
@@ -312,7 +313,7 @@ int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, vo
         LOG_INFO("Patrol task cancelled: %s", task->id);
         task->status = PATROL_TASK_STATUS_CANCELLED;
         motor_stop_all();
-        return -1;
+        return WD_ERR_CANCELED;
     }
 
     task->status = PATROL_TASK_STATUS_COMPLETED;
@@ -326,12 +327,12 @@ int patrol_task_execute(patrol_task_t *task, patrol_task_callback_t callback, vo
  */
 int patrol_task_cancel(patrol_task_t *task) {
     if (!task) {
-        return -1;
+        return WD_ERR_PARAM;
     }
     
     if (task->status != PATROL_TASK_STATUS_RUNNING) {
         LOG_WARN("Cannot cancel task that is not running: %s", task->id);
-        return -1;
+        return WD_ERR_STATE;
     }
     
     /* P4-07：只置本任务的标志；执行线程在动作之间/动作内部轮询它 */

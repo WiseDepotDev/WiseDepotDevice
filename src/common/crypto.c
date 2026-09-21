@@ -9,6 +9,7 @@
 #include "common/crypto.h"
 #include "common/xmalloc.h"
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +35,7 @@ int hmac_sha256(const void *key, size_t key_len, const void *data, size_t data_l
     tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
     if (tfmfd < 0) {
         LOG_ERROR("Failed to create AF_ALG socket");
-        return -1;
+        return WD_ERR_CRYPTO;
     }
 
     // 2. Bind

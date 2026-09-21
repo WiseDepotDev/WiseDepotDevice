@@ -9,6 +9,7 @@
 #include "common/config.h"
 #include "common/xmalloc.h"
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,7 +63,7 @@ static int config_init_defaults(void) {
     g_config = (wd_config_t *)xcalloc_try(1, sizeof(wd_config_t));
     if (!g_config) {
         LOG_ERROR("分配配置结构失败（内存不足）");
-        return -1;
+        return WD_ERR_NOMEM;
     }
     
     g_config->server_url = xstrdup_try(DEFAULT_SERVER_URL);
@@ -158,7 +159,7 @@ static int config_init_defaults(void) {
         !g_config->api_base_url || !g_config->rfid_serial_port ||
         !g_config->log_upload_strategy || !g_config->version) {
         LOG_ERROR("初始化默认配置失败（内存不足）");
-        return -1;
+        return WD_ERR_NOMEM;
     }
     return 0;
 }
@@ -168,7 +169,7 @@ static int config_init_defaults(void) {
 
 int config_load(const char *config_file) {
     if (config_init_defaults() != 0) {
-        return -1;
+        return WD_ERR_NOMEM;
     }
 
     /* 优先级（与 config.h 的文档一致）：默认值 < 配置文件 < 环境变量。
@@ -261,7 +262,7 @@ int config_load(const char *config_file) {
     /* P4-06：文件解析与环境覆盖中的 xstrdup_try 失败会留下 NULL 字段，这里统一兜底 */
     if (!g_config->server_url || !g_config->device_id) {
         LOG_ERROR("配置加载失败：必需字段缺失（内存不足？）");
-        return -1;
+        return WD_ERR_PARAM;
     }
 
     return 0;
@@ -273,13 +274,13 @@ const char *config_signature_secret(void) {
 
 int config_update_from_json(const char *json_str) {
     if (!g_config && config_init_defaults() != 0) {
-        return -1;
+        return WD_ERR_NOMEM;
     }
     
     cJSON *root = cJSON_Parse(json_str);
     if (!root) {
         LOG_ERROR("Failed to parse config JSON");
-        return -1;
+        return WD_ERR_PARAM;
     }
     
     cJSON *item;
@@ -329,7 +330,7 @@ int config_update_from_json(const char *json_str) {
     if (!g_config->api_base_url || !g_config->log_upload_strategy || !g_config->version) {
         LOG_ERROR("配置更新失败：必需字段缺失（内存不足？）");
         cJSON_Delete(root);
-        return -1;
+        return WD_ERR_PARAM;
     }
     LOG_INFO("Configuration updated to version %s", g_config->version);
     
@@ -342,12 +343,12 @@ int config_update_from_json(const char *json_str) {
 }
 
 int config_save_encrypted(void) {
-    if (!g_config) return -1;
+    if (!g_config) return WD_ERR_STATE;
     
     cJSON *root = cJSON_CreateObject();
     if (!root) {
         LOG_ERROR("创建配置 JSON 对象失败（内存不足）");
-        return -1;
+        return WD_ERR_NOMEM;
     }
     cJSON_AddStringToObject(root, "server_url", g_config->server_url);
     cJSON_AddStringToObject(root, "device_id", g_config->device_id);
@@ -367,7 +368,7 @@ int config_save_encrypted(void) {
     if (!json_str) {
         LOG_ERROR("序列化配置 JSON 失败（内存不足）");
         cJSON_Delete(root);
-        return -1;
+        return WD_ERR_NOMEM;
     }
     
     // 简单加密模拟 (实际应使用 OpenSSL AES)
@@ -393,10 +394,10 @@ int config_secure_delete(const char *file_path) {
     if (access(file_path, F_OK) != 0) return 0; // File doesn't exist
     
     struct stat st;
-    if (stat(file_path, &st) != 0) return -1;
+    if (stat(file_path, &st) != 0) return WD_ERR_IO;
     
     int fd = open(file_path, O_WRONLY);
-    if (fd < 0) return -1;
+    if (fd < 0) return WD_ERR_IO;
     
     // 覆盖 3 次
     char buf[4096];
@@ -416,7 +417,7 @@ int config_secure_delete(const char *file_path) {
     // 删除文件
     if (unlink(file_path) != 0) {
         LOG_ERROR("Failed to delete file: %s", file_path);
-        return -1;
+        return WD_ERR_IO;
     }
     
     LOG_INFO("Securely deleted file: %s", file_path);

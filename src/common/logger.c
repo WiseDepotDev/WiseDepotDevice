@@ -8,6 +8,7 @@
 
 #include "common/logger.h"
 #include "common/xmalloc.h"
+#include "common/wd_error.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -64,14 +65,14 @@ int logger_init(const char *log_file, log_level_t level) {
         g_log_file = xstrdup_try(log_file);
         if (!g_log_file) {
             pthread_mutex_unlock(&g_log_mutex);
-            return -1;
+            return WD_ERR_NOMEM;
         }
         g_log_fp = fopen(log_file, "a");
         if (!g_log_fp) {
             /* 注意：这里不调用 LOG_*（会在持锁状态下递归取锁） */
             fprintf(stderr, "[ERROR] Failed to open log file: %s\n", log_file);
             pthread_mutex_unlock(&g_log_mutex);
-            return -1;
+            return WD_ERR_IO;
         }
     }
 
@@ -92,7 +93,7 @@ int logger_reopen(const char *new_log_file) {
         g_log_file = xstrdup_try(new_log_file);
         if (!g_log_file) {
             pthread_mutex_unlock(&g_log_mutex);
-            return -1;
+            return WD_ERR_NOMEM;
         }
     }
 

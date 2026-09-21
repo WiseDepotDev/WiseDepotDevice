@@ -1,6 +1,7 @@
 #include "domain/rfid_protocol.h"
 #include "common/xmalloc.h"
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <string.h>
 
 #define PRESET_VALUE 0xFFFF
@@ -23,7 +24,7 @@ static uint16_t calculate_crc16(const uint8_t *data, size_t len) {
 
 int rfid_parse_response(const uint8_t *buffer, size_t len, rfid_response_t *out_response) {
     if (!buffer || !out_response || len < 5) {
-        return -1;
+        return WD_ERR_PARAM;
     }
 
     // Verify CRC
@@ -32,7 +33,7 @@ int rfid_parse_response(const uint8_t *buffer, size_t len, rfid_response_t *out_
 
     if (calc_crc != recv_crc) {
         LOG_ERROR("CRC mismatch: calc=0x%04X, recv=0x%04X", calc_crc, recv_crc);
-        return -1;
+        return WD_ERR_CRC;
     }
 
     out_response->address = buffer[1];
@@ -54,7 +55,7 @@ int rfid_parse_response(const uint8_t *buffer, size_t len, rfid_response_t *out_
     // Fix for type-limits error: data_len is size_t, so it can be larger than MAX_FRAME_SIZE
     if (data_len > MAX_FRAME_SIZE) {
         LOG_ERROR("Data length too large: %zu", data_len);
-        return -1;
+        return WD_ERR_PROTOCOL;
     }
 
     out_response->data_len = data_len;
@@ -64,7 +65,7 @@ int rfid_parse_response(const uint8_t *buffer, size_t len, rfid_response_t *out_
             /* P4-06：内存不足返回错误码，调用方负责释放/重试（不再退出进程） */
             LOG_ERROR("分配 RFID 响应数据失败（内存不足）");
             out_response->data_len = 0;
-            return -1;
+            return WD_ERR_NOMEM;
         }
         memcpy(out_response->data, &buffer[4], data_len);
     } else {

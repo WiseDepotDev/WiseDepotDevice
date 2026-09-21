@@ -5,6 +5,7 @@
 
 #include "domain/motor_internal.h"
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <errno.h>
 #include <time.h>
 #include <stdio.h>
@@ -61,7 +62,7 @@ int gpio_export(int *pin) {
         int fd = open(path, O_WRONLY);
         if (fd < 0) {
             LOG_ERROR("Failed to open GPIO export: %s (Try running as root?)", strerror(errno));
-            return -1;
+            return WD_ERR_IO;
         }
         
         char buf[16];
@@ -100,7 +101,7 @@ int gpio_export(int *pin) {
         return 0;
     }
     
-    return -1;
+    return WD_ERR_IO;
 }
 
 /**
@@ -113,14 +114,14 @@ int gpio_set_direction(int pin, bool output) {
     int fd = open(path, O_WRONLY);
     if (fd < 0) {
         LOG_ERROR("Failed to open GPIO direction (%s): %s", path, strerror(errno));
-        return -1;
+        return WD_ERR_IO;
     }
     
     const char *dir = output ? "out" : "in";
     if (write(fd, dir, strlen(dir)) < 0) {
         LOG_ERROR("Failed to write GPIO direction (%s): %s", path, strerror(errno));
         close(fd);
-        return -1;
+        return WD_ERR_IO;
     }
     
     close(fd);
@@ -137,14 +138,14 @@ int gpio_write(int pin, bool value) {
     int fd = open(path, O_WRONLY);
     if (fd < 0) {
         LOG_ERROR("Failed to open GPIO value (%s): %s", path, strerror(errno));
-        return -1;
+        return WD_ERR_IO;
     }
     
     char buf[2] = {value ? '1' : '0', '\0'};
     if (write(fd, buf, 1) < 0) {
         LOG_ERROR("Failed to write GPIO value (%s): %s", path, strerror(errno));
         close(fd);
-        return -1;
+        return WD_ERR_IO;
     }
     
     // LOG_DEBUG("GPIO %d set to %d", pin, value);
@@ -161,14 +162,14 @@ int gpio_unexport(int pin) {
     
     int fd = open(path, O_WRONLY);
     if (fd < 0) {
-        return -1;
+        return WD_ERR_IO;
     }
     
     char buf[16];
     snprintf(buf, sizeof(buf), "%d", pin);
     if (write(fd, buf, strlen(buf)) < 0) {
         close(fd);
-        return -1;
+        return WD_ERR_IO;
     }
     
     close(fd);

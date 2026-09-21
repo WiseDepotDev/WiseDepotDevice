@@ -5,6 +5,7 @@
 
 #include "domain/motor_internal.h"
 #include "common/logger.h"
+#include "common/wd_error.h"
 #include <errno.h>
 #include <time.h>
 #include <stdio.h>
@@ -18,7 +19,7 @@
 int pca9685_write(uint8_t reg, uint8_t value) {
     uint8_t buf[2] = {reg, value};
     if (write(g_motor_ctrl.i2c_fd, buf, 2) != 2) {
-        return -1;
+        return WD_ERR_IO;
     }
     return 0;
 }
@@ -28,11 +29,11 @@ int pca9685_write(uint8_t reg, uint8_t value) {
  */
 int pca9685_read(uint8_t reg) {
     if (write(g_motor_ctrl.i2c_fd, &reg, 1) != 1) {
-        return -1;
+        return WD_ERR_IO;
     }
     uint8_t value;
     if (read(g_motor_ctrl.i2c_fd, &value, 1) != 1) {
-        return -1;
+        return WD_ERR_IO;
     }
     return value;
 }
@@ -54,17 +55,17 @@ int pca9685_set_pwm_freq(uint16_t freq) {
     uint8_t new_mode = (old_mode & 0x7F) | 0x10;
     
     if (pca9685_write(PCA9685_MODE1, new_mode) < 0) {
-        return -1;
+        return WD_ERR_IO;
     }
     
     /* 设置预分频值 */
     if (pca9685_write(PCA9685_PRESCALE, prescale) < 0) {
-        return -1;
+        return WD_ERR_IO;
     }
     
     /* 恢复模式 */
     if (pca9685_write(PCA9685_MODE1, old_mode) < 0) {
-        return -1;
+        return WD_ERR_IO;
     }
     
     struct timespec ts1 = {0, 5000000}; /* 5ms */
@@ -72,7 +73,7 @@ int pca9685_set_pwm_freq(uint16_t freq) {
     
     /* 启用自动递增 */
     if (pca9685_write(PCA9685_MODE1, old_mode | 0xA1) < 0) { // 0xA1: Restart + Auto-Increment + ALLCALL
-        return -1;
+        return WD_ERR_IO;
     }
     
     return 0;
@@ -92,7 +93,7 @@ int pca9685_set_pwm(uint8_t channel, uint16_t on, uint16_t off) {
     buf[4] = (off >> 8) & 0xFF; // Full OFF bit is bit 12
     
     if (write(g_motor_ctrl.i2c_fd, buf, 5) != 5) {
-        return -1;
+        return WD_ERR_IO;
     }
     
     return 0;

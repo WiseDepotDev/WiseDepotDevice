@@ -3,6 +3,7 @@
 #include "common/logger.h"
 #include "common/utils.h"
 #include "common/xmalloc.h"
+#include "common/wd_error.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,28 +54,29 @@ int inventory_load_expected(const char *json_str) {
 
     if (json_str == NULL || expected_products == NULL) {
         LOG_WARN("Expected inventory: manager not initialized or out of memory");
-        return -1;
+        /* P4-11：区分「预期库存表为空（OOM/未初始化）」与「入参为空」，不再共用一个魔数 */
+        return (expected_products == NULL) ? WD_ERR_NOMEM : WD_ERR_PARAM;
     }
 
     /* 统一信封解析：唯一解析入口，不再兼容「根节点直接带 code」等历史格式 */
     rc = envelope_parse(json_str, &envelope);
     if (rc != WD_ENVELOPE_OK) {
         LOG_WARN("Expected inventory: envelope parse failed, rc=%d", rc);
-        return -1;
+        return WD_ERR_PARAM;
     }
     if (!envelope_is_success(&envelope)) {
         LOG_WARN("Expected inventory: business failed, code=%s, errorCode=%s",
                  envelope_code(&envelope) != NULL ? envelope_code(&envelope) : "(null)",
                  envelope_error_code(&envelope) != NULL ? envelope_error_code(&envelope) : "(null)");
         envelope_free(&envelope);
-        return -1;
+        return WD_ERR_GENERAL;
     }
 
     rows = envelope_data_rows(&envelope);
     if (!cJSON_IsArray(rows)) {
         LOG_WARN("Expected inventory: no list payload in data");
         envelope_free(&envelope);
-        return -1;
+        return WD_ERR_PARAM;
     }
 
     product_count = 0;
@@ -281,12 +283,12 @@ char *inventory_report_to_json(const inventory_report_t *report, const char *tas
 
 int inventory_cache_save(const inventory_report_t *report) {
     char *json = inventory_report_to_json(report, NULL); // Offline cache might not need task_id or we can add it later
-    if (!json) return -1;
+    if (!json) return WD_ERR_NOMEM;
     
     FILE *f = fopen(CACHE_FILE, "a"); // Append mode
     if (!f) {
         xfree(json);
-        return -1;
+        return WD_ERR_IO;
     }
     
     fprintf(f, "%s\n", json);

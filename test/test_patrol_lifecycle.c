@@ -8,10 +8,11 @@
  * 3. 正常执行路径仍然是 COMPLETED。
  *
  * 说明：用例全部走 `patrol_task_execute` + 回调返回 1（"已处理"），因此不会触碰电机/串口等硬件；
- * 取消路径里的 `motor_stop_all()` 在控制器未初始化时只会记日志并返回 -1。
+ * 取消路径里的 `motor_stop_all()` 在控制器未初始化时只会记日志并返回 WD_ERR_STATE。
  */
 
 #include "unity.h"
+#include "common/wd_error.h"
 #include "domain/patrol_task.h"
 #include <assert.h>
 #include <string.h>
@@ -59,15 +60,15 @@ void test_patrol_cancel_is_per_task(void) {
     TEST_ASSERT_TRUE(a->cancel_requested);
     TEST_ASSERT_FALSE(b->cancel_requested); /* 关键断言：没有全局取消状态 */
 
-    /* 未运行的任务不允许取消 */
+    /* 未运行的任务不允许取消（P4-11：具名错误码 WD_ERR_STATE） */
     b->status = PATROL_TASK_STATUS_PENDING;
-    TEST_ASSERT_EQUAL(-1, patrol_task_cancel(b));
+    TEST_ASSERT_EQUAL(WD_ERR_STATE, patrol_task_cancel(b));
 
     patrol_task_free(a);
     patrol_task_free(b);
 }
 
-/** 执行中途被取消：返回 -1、状态 CANCELLED、后续动作不再执行 */
+/** 执行中途被取消：返回 WD_ERR_CANCELED、状态 CANCELLED、后续动作不再执行 */
 void test_patrol_execute_cancelled_midway(void) {
     patrol_task_t *task = make_task("life-cancel-mid", 3);
     lifecycle_ctx_t ctx;
@@ -78,7 +79,7 @@ void test_patrol_execute_cancelled_midway(void) {
 
     int rc = patrol_task_execute(task, lifecycle_callback, &ctx);
 
-    TEST_ASSERT_EQUAL(-1, rc);
+    TEST_ASSERT_EQUAL(WD_ERR_CANCELED, rc);
     TEST_ASSERT_EQUAL(PATROL_TASK_STATUS_CANCELLED, task->status);
     TEST_ASSERT_EQUAL(2, ctx.visited_count);      /* 只执行到索引 1 */
     TEST_ASSERT_EQUAL(0, ctx.visited[0]);
@@ -98,7 +99,7 @@ void test_patrol_execute_cancelled_on_last_action(void) {
 
     int rc = patrol_task_execute(task, lifecycle_callback, &ctx);
 
-    TEST_ASSERT_EQUAL(-1, rc);
+    TEST_ASSERT_EQUAL(WD_ERR_CANCELED, rc);
     TEST_ASSERT_EQUAL(PATROL_TASK_STATUS_CANCELLED, task->status);
     TEST_ASSERT_TRUE(task->cancel_requested);
 

@@ -11,6 +11,7 @@
 
 #include "unity.h"
 #include "common/error_code.h"
+#include "common/wd_error.h"
 #include "domain/inventory_manager.h"
 #include "infrastructure/rfid_driver.h"
 #include <stdlib.h>
@@ -34,13 +35,13 @@ static const char *FAILED_ENVELOPE =
     "\"errorCode\":\"VAL-CONFLICT-PERMISSION-1001\",\"data\":null}"
     "}";
 
-/** 预期库存加载：成功信封返回 0，NULL 与业务失败信封返回 -1 */
+/** 预期库存加载：成功信封返回 WD_OK，入参为空返回 WD_ERR_PARAM，业务失败返回 WD_ERR_GENERAL */
 void test_inventory_load_expected(void) {
     inventory_mgr_init();
 
     TEST_ASSERT_EQUAL(0, inventory_load_expected(EXPECTED_ENVELOPE));
-    TEST_ASSERT_EQUAL(-1, inventory_load_expected(NULL));
-    TEST_ASSERT_EQUAL(-1, inventory_load_expected(FAILED_ENVELOPE));
+    TEST_ASSERT_EQUAL(WD_ERR_PARAM, inventory_load_expected(NULL));
+    TEST_ASSERT_EQUAL(WD_ERR_GENERAL, inventory_load_expected(FAILED_ENVELOPE));
 
     inventory_mgr_free();
 }
