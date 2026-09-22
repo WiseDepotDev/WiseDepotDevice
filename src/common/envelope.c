@@ -6,7 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
+#include "common/crypto.h"
 #include "common/envelope.h"
 #include "common/error_code.h"
 
@@ -21,6 +24,102 @@ static void copy_field(char *dst, size_t cap, const char *src)
         return;
     }
     (void)snprintf(dst, cap, "%s", src);
+}
+
+/** 取毫秒级时间戳（失败返回 0） */
+static int64_t now_millis(void) {
+    struct timespec ts;
+
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+        return 0;
+    }
+    return (int64_t)ts.tv_sec * 1000 + (int64_t)(ts.tv_nsec / 1000000);
+}
+
+/**
+ * 生成 request_id：`<毫秒时间戳>-<8 位随机十六进制>`。
+ *
+ * 随机源不可用时退化为 `<毫秒时间戳>-<pid>`（仍满足 schema 的 8..128 长度要求，
+ * 且不引入跨线程共享计数器的数据竞争）。
+ */
+static int build_request_id(char *buf, size_t cap, int64_t ts) {
+    char suffix[16];
+
+    if (wd_random_hex(suffix, sizeof(suffix)) > 0) {
+        return snprintf(buf, cap, "%lld-%s", (long long)ts, suffix) > 0;
+    }
+    return snprintf(buf, cap, "%lld-%ld", (long long)ts, (long)getpid()) > 0;
+}
+
+char *envelope_wrap_request(const char *packet_type, const char *flat_json, char *request_id_out,
+                            size_t request_id_cap) {
+    cJSON *root = NULL;
+    cJSON *header = NULL;
+    cJSON *payload = NULL;
+    cJSON *data = NULL;
+    char request_id[WD_ENVELOPE_REQUEST_ID_CAP];
+    char *out = NULL;
+    int64_t ts;
+
+    if (packet_type == NULL || packet_type[0] == '\0') {
+        return NULL;
+    }
+    if (request_id_cap > sizeof(request_id)) {
+        request_id_cap = sizeof(request_id);
+    }
+
+    ts = now_millis();
+    if (!build_request_id(request_id, sizeof(request_id), ts)) {
+        return NULL;
+    }
+
+    if (flat_json != NULL && flat_json[0] != '\0') {
+        data = cJSON_Parse(flat_json);
+        if (data == NULL || !cJSON_IsObject(data)) {
+            /* 不是 JSON 或根节点不是对象：不猜测、不静默改写，交给调用方决策 */
+            cJSON_Delete(data);
+            return NULL;
+        }
+    } else {
+        data = cJSON_CreateObject();
+        if (data == NULL) {
+            return NULL;
+        }
+    }
+
+    root = cJSON_CreateObject();
+    header = cJSON_CreateObject();
+    payload = cJSON_CreateObject();
+    if (root == NULL || header == NULL || payload == NULL) {
+        goto cleanup;
+    }
+
+    cJSON_AddStringToObject(header, "request_id", request_id);
+    cJSON_AddStringToObject(header, "packet_type", packet_type);
+    cJSON_AddNumberToObject(header, "timestamp", (double)ts);
+
+    cJSON_AddStringToObject(payload, "code", WD_ENVELOPE_REQUEST_CODE);
+    cJSON_AddStringToObject(payload, "message", "请求");
+    cJSON_AddItemToObject(payload, "data", data);
+    data = NULL; /* 所有权已转移给 payload */
+
+    cJSON_AddItemToObject(root, "header", header);
+    header = NULL;
+    cJSON_AddItemToObject(root, "payload", payload);
+    payload = NULL;
+
+    out = cJSON_PrintUnformatted(root);
+
+    if (out != NULL && request_id_out != NULL) {
+        copy_field(request_id_out, request_id_cap, request_id);
+    }
+
+cleanup:
+    cJSON_Delete(data);
+    cJSON_Delete(header);
+    cJSON_Delete(payload);
+    cJSON_Delete(root);
+    return out;
 }
 
 int envelope_parse(const char *json_str, wd_envelope_t *out)

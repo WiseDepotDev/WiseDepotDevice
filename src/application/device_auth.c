@@ -13,6 +13,7 @@
 #include "common/config.h"
 #include "common/crypto.h"
 #include "common/device_info.h"
+#include "common/envelope.h"
 #include "common/logger.h"
 #include "common/xmalloc.h"
 #include "infrastructure/http_client.h"
@@ -119,7 +120,16 @@ wd_error_t device_register(void) {
              info->os_name, 
              info->kernel_ver,
              DEVICE_VERSION);
-             
+
+    /* P4-19 请求侧信封化：后端 DeviceController#createDevice 的 @ApiPacketType 即 DEVICE_CREATE。
+     * 信封只改请求体，签名串仍是 METHOD+URI+query，不受影响。 */
+    char request_id[WD_ENVELOPE_REQUEST_ID_CAP] = {0};
+    char *enveloped = envelope_wrap_request("DEVICE_CREATE", body, request_id, sizeof(request_id));
+    if (enveloped == NULL) {
+        LOG_WARN("注册请求信封化失败，降级为扁平请求体（服务端会记 deprecated=true）");
+    }
+    const char *body_to_send = (enveloped != NULL) ? enveloped : body;
+
     // Generate Signature
     char timestamp[20];
     snprintf(timestamp, sizeof(timestamp), "%ld", (long)time(NULL)); 
@@ -128,6 +138,7 @@ wd_error_t device_register(void) {
     // Use timestamp + rand to ensure uniqueness even if rand() collides
     if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
         LOG_ERROR("无法获取随机 nonce，注册请求中止");
+        free(enveloped);
         return WD_ERR_GENERAL;
     }
     
@@ -142,6 +153,7 @@ wd_error_t device_register(void) {
     const char *signing_secret = config_signature_secret();
     if (signing_secret == NULL) {
         LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); registration aborted");
+        free(enveloped);
         return WD_ERR_STATE;
     }
     hmac_sha256(signing_secret, strlen(signing_secret), string_to_sign, strlen(string_to_sign), hmac_result);
@@ -152,22 +164,29 @@ wd_error_t device_register(void) {
     char header_sign[256];
     char header_time[64];
     char header_nonce[64];
-    
+    char header_request_id[192];
+
     snprintf(header_sign, sizeof(header_sign), "X-Signature: %s", signature);
     snprintf(header_time, sizeof(header_time), "X-Timestamp: %s", timestamp);
     snprintf(header_nonce, sizeof(header_nonce), "X-Nonce: %s", nonce);
-    
-    const char *headers[3];
+
+    const char *headers[4];
+    int header_count = 3;
     headers[0] = header_sign;
     headers[1] = header_time;
     headers[2] = header_nonce;
-    
+    if (request_id[0] != '\0') {
+        snprintf(header_request_id, sizeof(header_request_id), "REQUEST-ID: %s", request_id);
+        headers[header_count++] = header_request_id;
+    }
+
     snprintf(url, sizeof(url), "%s%s", cfg->server_url, uri_path);
     
     LOG_INFO("Registering device: %s (Model: %s, OS: %s)", cfg->device_id, info->model, info->os_name);
-    
-    http_response_t *res = http_post_with_retry(url, body, headers, 3, 10000, 3);
-    
+
+    http_response_t *res = http_post_with_retry(url, body_to_send, headers, header_count, 10000, 3);
+
+    free(enveloped);
     xfree(signature);
     
     if (!res) {
@@ -255,11 +274,30 @@ wd_error_t device_refresh_token(void) {
     
     char body[1024];
     snprintf(body, sizeof(body), "{\"refreshToken\": \"%s\"}", g_refresh_token);
-    
+
+    /* P4-19 请求侧信封化。AuthController#refreshToken 未标注 @ApiPacketType，
+     * 服务端响应侧此时固定为 UNKNOWN，请求侧按 schema「未知类型固定 UNKNOWN」保持一致。 */
+    char request_id[WD_ENVELOPE_REQUEST_ID_CAP] = {0};
+    char *enveloped = envelope_wrap_request("UNKNOWN", body, request_id, sizeof(request_id));
+    if (enveloped == NULL) {
+        LOG_WARN("令牌刷新请求信封化失败，降级为扁平请求体（服务端会记 deprecated=true）");
+    }
+    const char *body_to_send = (enveloped != NULL) ? enveloped : body;
+
+    char header_request_id[192];
+    const char *headers[1];
+    int header_count = 0;
+    if (request_id[0] != '\0') {
+        snprintf(header_request_id, sizeof(header_request_id), "REQUEST-ID: %s", request_id);
+        headers[header_count++] = header_request_id;
+    }
+
     LOG_INFO("Refreshing token...");
-    
-    http_response_t *res = http_post(url, body, NULL, 0);
-    
+
+    http_response_t *res = http_post(url, body_to_send, headers, header_count);
+
+    free(enveloped);
+
     if (!res) {
         LOG_ERROR("Token refresh request failed (Network error)");
         return WD_ERR_CONNECT;

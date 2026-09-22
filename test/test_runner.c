@@ -24,6 +24,12 @@ extern void test_envelope_rejects_legacy_format(void);
 extern void test_envelope_invalid_input(void);
 extern void test_envelope_success_code_matches_generated_macro(void);
 extern void test_envelope_system_error_fixture(void);
+/* P4-19 请求侧信封化 */
+extern void test_envelope_wrap_request_shape(void);
+extern void test_envelope_wrap_request_roundtrip_with_own_parser(void);
+extern void test_envelope_wrap_request_empty_payload(void);
+extern void test_envelope_wrap_request_rejects_bad_input(void);
+extern void test_envelope_wrap_request_packet_type_pattern(void);
 /* P4-01 内存安全回归 */
 extern void test_bytes_to_hex_respects_capacity(void);
 extern void test_wd_str_appendf_never_overflows(void);
@@ -105,6 +111,11 @@ int main(void) {
     RUN_TEST(test_envelope_invalid_input);
     RUN_TEST(test_envelope_success_code_matches_generated_macro);
     RUN_TEST(test_envelope_system_error_fixture);
+    RUN_TEST(test_envelope_wrap_request_shape);
+    RUN_TEST(test_envelope_wrap_request_roundtrip_with_own_parser);
+    RUN_TEST(test_envelope_wrap_request_empty_payload);
+    RUN_TEST(test_envelope_wrap_request_rejects_bad_input);
+    RUN_TEST(test_envelope_wrap_request_packet_type_pattern);
 
     // 内存安全（P4-01）
     RUN_TEST(test_bytes_to_hex_respects_capacity);

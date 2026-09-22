@@ -9,6 +9,7 @@
 #include "application/heartbeat_task.h"
 #include "application/device_service.h"
 #include "common/config.h"
+#include "common/envelope.h"
 #include "common/logger.h"
 #include "common/xmalloc.h"
 #include "common/sys_monitor.h"
@@ -67,17 +68,31 @@ void heartbeat_task_execute(void *ctx) {
     snprintf(body, sizeof(body), 
              "{\"deviceCode\": \"%s\", \"cpuUsage\": %.2f, \"memUsage\": %.2f}",
              cfg->device_id, cpu, mem);
-             
-    // LOG_DEBUG("Sending heartbeat: CPU=%.2f%%, Mem=%.2f%%", cpu, mem);
+
+    /* P4-19 请求侧信封化：后端 DeviceController#receiveHeartbeat 的 @ApiPacketType 即 DEVICE_HEARTBEAT。
+     * 只包装「带 JSON 体」的两种调用；无 Token 走的 query 形式本来就没有请求体，保持原样。 */
+    char request_id[WD_ENVELOPE_REQUEST_ID_CAP] = {0};
+    char *enveloped = envelope_wrap_request("DEVICE_HEARTBEAT", body, request_id, sizeof(request_id));
+    if (enveloped == NULL) {
+        LOG_WARN("心跳请求信封化失败，降级为扁平请求体（服务端会记 deprecated=true）");
+    }
+    const char *body_to_send = (enveloped != NULL) ? enveloped : body;
     
     http_response_t *res = NULL;
     
     if (g_hb_token) {
         // Use Token
         char auth_header[1024];
+        char header_request_id[192];
         snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", g_hb_token);
-        const char *headers[] = { auth_header };
-        res = http_post(url, body, headers, 1);
+        const char *headers[2];
+        int header_count = 1;
+        headers[0] = auth_header;
+        if (request_id[0] != '\0') {
+            snprintf(header_request_id, sizeof(header_request_id), "REQUEST-ID: %s", request_id);
+            headers[header_count++] = header_request_id;
+        }
+        res = http_post(url, body_to_send, headers, header_count);
     } else {
         // Fallback to Signature
         LOG_DEBUG("No token, using signature for heartbeat");
@@ -88,6 +103,7 @@ void heartbeat_task_execute(void *ctx) {
         char nonce[32];
         if (wd_random_hex(nonce, sizeof(nonce)) == 0) {
         LOG_ERROR("无法获取随机 nonce，心跳中止");
+        free(enveloped);
         return;
     }
         
@@ -103,6 +119,7 @@ void heartbeat_task_execute(void *ctx) {
         const char *signing_secret = config_signature_secret();
         if (signing_secret == NULL) {
             LOG_ERROR("Signature secret not configured (WISE_API_SIGNATURE_SECRET / signature_secret); heartbeat skipped");
+            free(enveloped);
             return;
         }
         hmac_sha256(signing_secret, strlen(signing_secret), string_to_sign, strlen(string_to_sign), hmac_result);
@@ -131,6 +148,7 @@ void heartbeat_task_execute(void *ctx) {
     
     if (!res) {
         LOG_ERROR("Heartbeat request failed (Network error)");
+        free(enveloped);
         return;
     }
     
@@ -143,15 +161,23 @@ void heartbeat_task_execute(void *ctx) {
             http_response_free(res);
             LOG_INFO("Token refreshed, retrying heartbeat");
             
-            // Retry with new token
+            // Retry with new token：复用同一个信封与 request_id（同一次逻辑请求的重试）
             char auth_header[1024];
+            char retry_request_id[192];
             snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", g_hb_token);
-            const char *headers[] = { auth_header };
-            res = http_post(url, body, headers, 1);
+            const char *headers[2];
+            int header_count = 1;
+            headers[0] = auth_header;
+            if (request_id[0] != '\0') {
+                snprintf(retry_request_id, sizeof(retry_request_id), "REQUEST-ID: %s", request_id);
+                headers[header_count++] = retry_request_id;
+            }
+            res = http_post(url, body_to_send, headers, header_count);
             
             if (res && res->status_code >= 200 && res->status_code < 300) {
                 // LOG_DEBUG("Heartbeat successful after token refresh");
                 http_response_free(res);
+                free(enveloped);
                 return;
             }
         }
@@ -168,4 +194,5 @@ void heartbeat_task_execute(void *ctx) {
     if (res) {
         http_response_free(res);
     }
+    free(enveloped);
 }

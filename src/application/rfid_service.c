@@ -2,6 +2,7 @@
 #include "infrastructure/rfid_driver.h"
 #include "domain/inventory_manager.h"
 #include "common/config.h"
+#include "common/envelope.h"
 #include "common/logger.h"
 #include "common/xmalloc.h"
 #include "common/utils.h"
@@ -182,10 +183,31 @@ static void upload_report(const inventory_report_t *report, const char *task_id)
     // Try HTTP if MQTT failed
     if (service_config.server_url) {
         char url[256];
+        char request_id[WD_ENVELOPE_REQUEST_ID_CAP] = {0};
+        char header_request_id[192];
         snprintf(url, sizeof(url), "%s/api/inspection/report", service_config.server_url);
-        const char *headers[] = {"Content-Type: application/json"};
-        
-        http_response_t *resp = http_post(url, json, headers, 1);
+
+        /* P4-19：HTTP 请求体信封化（packet_type 取 PacketType.RFID_DATA_UPLOAD）；
+         * 签名串仍是 METHOD+URI+query，与请求体无关。
+         * MQTT 侧**不**信封化：服务端 MqttReportListener 直接
+         * `objectMapper.readValue(payload, InspectionReportRequest.class)`，
+         * 没有解包逻辑，套上信封会让服务端反序列化拿不到字段（见基线记录本章诚实边界）。 */
+        char *enveloped = envelope_wrap_request("RFID_DATA_UPLOAD", json, request_id, sizeof(request_id));
+        if (enveloped == NULL) {
+            LOG_WARN("上报请求信封化失败，降级为扁平请求体（服务端会记 deprecated=true）");
+        }
+        const char *body_to_send = (enveloped != NULL) ? enveloped : json;
+
+        const char *headers[2];
+        int header_count = 1;
+        headers[0] = "Content-Type: application/json";
+        if (request_id[0] != '\0') {
+            snprintf(header_request_id, sizeof(header_request_id), "REQUEST-ID: %s", request_id);
+            headers[header_count++] = header_request_id;
+        }
+
+        http_response_t *resp = http_post(url, body_to_send, headers, header_count);
+        free(enveloped);
         if (resp) {
             if (resp->status_code == 200 || resp->status_code == 201) {
                 // LOG_INFO("Report uploaded via HTTP");

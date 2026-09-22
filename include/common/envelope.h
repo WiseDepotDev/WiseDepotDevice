@@ -29,6 +29,17 @@
 extern "C" {
 #endif
 
+/**
+ * 请求信封 payload.code 固定值。
+ *
+ * 服务端请求侧不校验业务码，但 `docs/standards/schemas/envelope.schema.json` 要求
+ * payload 必须带 code/message，因此请求一律写成功码（与响应侧语义一致）。
+ */
+#define WD_ENVELOPE_REQUEST_CODE "RES-0000"
+
+/** request_id 缓冲建议容量：schema 要求 8..128，时间戳+随机后缀实测 20 字符左右 */
+#define WD_ENVELOPE_REQUEST_ID_CAP 96
+
 /** 信封解析结果码 */
 typedef enum {
     WD_ENVELOPE_OK = 0,            /**< 解析成功且载荷结构合法 */
@@ -63,6 +74,32 @@ typedef struct {
  * @return wd_envelope_result_t 结果码
  */
 int envelope_parse(const char *json_str, wd_envelope_t *out);
+
+/**
+ * @brief 把「扁平业务字段」包装成标准请求信封（STD-CONTRACT-02 请求侧）。
+ *
+ * 请求侧信封化是唯一的请求体构造出口：业务代码只准备扁平 JSON，
+ * 由本函数补 `header`（request_id / packet_type / timestamp）与
+ * `payload`（code=RES-0000 / message / data=原扁平对象）。
+ * 服务端 `GlobalRequestAdvice` 解包后只把 `payload.data` 交给控制器，
+ * 因此包装后控制器收到的字段与包装前逐字一致。
+ *
+ * **不参与签名**：设备端签名串固定为 `METHOD\nURI\nquery`
+ * （见 RequestSignatureService），请求体不在其中，故信封化不影响签名校验。
+ *
+ * @param packet_type  报文类型，必须是大写字母/数字/下划线且取自服务端 PacketType
+ *                     （如 DEVICE_CREATE / DEVICE_HEARTBEAT / RFID_DATA_UPLOAD）；
+ *                     无对应类型时用 UNKNOWN。空串或 NULL 视为调用错误，直接返回 NULL。
+ * @param flat_json    扁平业务字段 JSON 对象文本；NULL 或空串表示无字段（payload.data 为 {}）。
+ *                     解析失败或根节点不是对象时返回 NULL（调用方必须自己决定降级策略）。
+ * @param request_id_out 非 NULL 时写入本次生成的 request_id（用于 HTTP 头 REQUEST-ID 透传）
+ * @param request_id_cap  该缓冲容量，建议 WD_ENVELOPE_REQUEST_ID_CAP
+ * @return 信封 JSON 文本；**由 cJSON 用 malloc 分配，调用方必须用 free() 释放**
+ *         （与 config.c 中 cJSON_Print* 的约定一致，不可用 xfree）；
+ *         失败返回 NULL
+ */
+char *envelope_wrap_request(const char *packet_type, const char *flat_json, char *request_id_out,
+                            size_t request_id_cap);
 
 /**
  * @brief 释放信封持有的解析树。
