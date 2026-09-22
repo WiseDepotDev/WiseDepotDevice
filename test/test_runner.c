@@ -40,6 +40,8 @@ extern void test_patrol_new_task_is_not_cancelled(void);
 extern void test_rfid_build_frame_matches_manual_layout(void);
 extern void test_rfid_build_frame_rejects_bad_input(void);
 extern void test_rfid_config_env_overrides(void);
+extern void test_rfid_baud_code_matches_reference(void);
+extern void test_rfid_set_config_rejects_bad_params(void);
 extern void test_patrol_task_from_server_message(void);
 extern void test_patrol_task_from_actions_array(void);
 extern void test_patrol_task_from_json_rejects_bad_input(void);
@@ -124,6 +126,8 @@ int main(void) {
     RUN_TEST(test_rfid_build_frame_matches_manual_layout);
     RUN_TEST(test_rfid_build_frame_rejects_bad_input);
     RUN_TEST(test_rfid_config_env_overrides);
+    RUN_TEST(test_rfid_baud_code_matches_reference);        /* P4-18 */
+    RUN_TEST(test_rfid_set_config_rejects_bad_params);       /* P4-18 */
 
     // 巡检任务 JSON 与服务端契约对齐（P4-16）
     RUN_TEST(test_patrol_task_from_server_message);

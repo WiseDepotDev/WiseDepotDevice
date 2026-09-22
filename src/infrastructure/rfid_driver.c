@@ -298,6 +298,63 @@ wd_error_t rfid_set_power(int dbm) {
     return WD_OK;
 }
 
+int rfid_baud_code(int baud) {
+    /* 编码对齐参考实现 RFIDCommand.setBaudRate()：
+     * 9600→0x00 19200→0x01 38400→0x02 57600→0x05 115200→0x06（0x03/0x04 是参考实现未列出的档位） */
+    switch (baud) {
+        case 9600:   return 0x00;
+        case 19200:  return 0x01;
+        case 38400:  return 0x02;
+        case 57600:  return 0x05;
+        case 115200: return 0x06;
+        default:     return -1;
+    }
+}
+
+wd_error_t rfid_set_address(uint8_t address) {
+    if (address == 0xFF) {
+        LOG_ERROR("读头地址不允许设为广播地址 0xFF");
+        return WD_ERR_PARAM;
+    }
+
+    uint8_t data[1] = { address };
+    uint8_t resp[RFID_FRAME_MAX_LEN];
+
+    /* 配置类命令一律走广播地址：目标读头的当前地址可能未知 */
+    int ret = send_command(0xFF, 0x24, data, 1, resp, sizeof(resp));
+    if (ret < 0) {
+        return (wd_error_t)ret;
+    }
+    if (resp[3] != 0x00) {
+        LOG_ERROR("设置读头地址失败，状态字: 0x%02X", resp[3]);
+        return WD_ERR_PROTOCOL;
+    }
+    LOG_INFO("读头地址已设为 0x%02X（重启或重新上电后生效）", address);
+    return WD_OK;
+}
+
+wd_error_t rfid_set_baudrate(int baud) {
+    int code = rfid_baud_code(baud);
+    if (code < 0) {
+        LOG_ERROR("不支持的读头波特率: %d（仅 9600/19200/38400/57600/115200）", baud);
+        return WD_ERR_PARAM;
+    }
+
+    uint8_t data[1] = { (uint8_t)code };
+    uint8_t resp[RFID_FRAME_MAX_LEN];
+
+    int ret = send_command(0xFF, 0x28, data, 1, resp, sizeof(resp));
+    if (ret < 0) {
+        return (wd_error_t)ret;
+    }
+    if (resp[3] != 0x00) {
+        LOG_ERROR("设置读头波特率失败，状态字: 0x%02X", resp[3]);
+        return WD_ERR_PROTOCOL;
+    }
+    LOG_INFO("读头波特率已设为 %d（宿主串口必须同步切换）", baud);
+    return WD_OK;
+}
+
 int rfid_inventory(rfid_tag_t *tags, size_t max_tags) {
     // CMD_INVENTORY (0x01)
     /* 仅做 EPC 盘点：不带 AdrTID/LenTID（可选字段），命令无数据段。 */

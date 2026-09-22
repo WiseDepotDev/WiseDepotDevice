@@ -69,6 +69,14 @@ rfid_address=0xFF
 # 现场首次切换新路径前，请先用 0 状态做一次真机回归（P4-12 的真机验证项）。
 rfid_legacy_frames=1
 
+# ---- 读头交付期命令（P4-18，默认不自动执行）----
+# 地址与波特率属于"一次性写死"的命令：写错地址会让读头从总线上消失，
+# 波特率还与宿主串口速率互为前提，因此**不在初始化时自动下发**。
+# 需要用维护工具显式调用（设备端已提供 rfid_set_address() / rfid_set_baudrate()）：
+#   1) 现场确认两侧速率一致后再下发 0x28（波特率）；
+#   2) 多读头场景逐个下发 0x24（地址），之后把 rfid_address 改成对应单播地址。
+# 功率（rfid_power）不同：它在 rfid_init 里按需自动下发（0x2F），无需人工介入。
+
 # ---- 请求签名（必须配置） ----
 # X-Signature 的 HMAC-SHA256 密钥，必须与服务端 wise.api.signature.secret
 # （即服务端环境变量 WISE_API_SIGNATURE_SECRET）完全一致。

@@ -99,3 +99,28 @@ void test_rfid_config_env_overrides(void) {
     unsetenv("WISE_RFID_SERIAL_PORT");
     unsetenv("WISE_RFID_LEGACY_FRAMES");
 }
+
+
+/** P4-18：波特率编码表必须与参考实现一致（9600→0x00 … 57600→0x05、115200→0x06） */
+void test_rfid_baud_code_matches_reference(void) {
+    TEST_ASSERT_EQUAL(0x00, rfid_baud_code(9600));
+    TEST_ASSERT_EQUAL(0x01, rfid_baud_code(19200));
+    TEST_ASSERT_EQUAL(0x02, rfid_baud_code(38400));
+    TEST_ASSERT_EQUAL(0x05, rfid_baud_code(57600));
+    TEST_ASSERT_EQUAL(0x06, rfid_baud_code(115200));
+    /* 不支持的速率返回 -1（参考实现里会抛异常，这里退化为错误码） */
+    TEST_ASSERT_EQUAL(-1, rfid_baud_code(4800));
+    TEST_ASSERT_EQUAL(-1, rfid_baud_code(0));
+}
+
+/** P4-18：地址/波特率下发在**参数非法**时必须提前拒绝（不发生串口通信） */
+void test_rfid_set_config_rejects_bad_params(void) {
+    /* 广播地址不能作为目标地址；非法波特率在映射阶段就被拒 */
+    TEST_ASSERT_EQUAL(WD_ERR_PARAM, rfid_set_address(0xFF));
+    TEST_ASSERT_EQUAL(WD_ERR_PARAM, rfid_set_baudrate(4800));
+
+    /* 合法参数但串口未打开：应返回"状态不满足"，而不是崩溃或假成功 */
+    rfid_close();
+    TEST_ASSERT_EQUAL(WD_ERR_STATE, rfid_set_address(0x01));
+    TEST_ASSERT_EQUAL(WD_ERR_STATE, rfid_set_baudrate(57600));
+}

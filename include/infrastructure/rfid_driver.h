@@ -51,6 +51,41 @@ int rfid_set_mode_response(void);
 wd_error_t rfid_set_power(int dbm);
 
 /**
+ * @brief 把波特率换算成读头协议里的编码（0x28 命令的 data 字节）。
+ *
+ * 编码来源：参考实现 `docs/reference/rfid/driver-src/.../RFIDCommand.java#setBaudRate`——
+ * 9600→0x00、19200→0x01、38400→0x02、57600→0x05、115200→0x06。
+ *
+ * @param baud 波特率
+ * @return 编码值；不支持的波特率返回 -1
+ */
+int rfid_baud_code(int baud);
+
+/**
+ * @brief 下发读头地址（CMD_SET_ADDRESS 0x24，data = 地址 1 字节）。
+ *
+ * 用**广播地址 0xFF** 发出：新地址可能未知，只有广播才能命中目标读头。
+ * 这是**调试/交付阶段的一次性命令**，不在 `rfid_init` 里自动调用——写错地址会让读头
+ * 从总线上"消失"，必须由现场流程显式触发（P4-18）。
+ *
+ * @param address 目标地址 0x00-0xFE（0xFF 广播不允许作为目标）
+ * @return WD_OK 成功；其余为负的错误码
+ */
+wd_error_t rfid_set_address(uint8_t address);
+
+/**
+ * @brief 下发读头波特率（CMD_SET_BAUD_RATE 0x28，data = 编码 1 字节）。
+ *
+ * 注意"鸡生蛋"约束：必须在**当前两侧速率一致**时发出；命令成功后读头即切到新速率，
+ * 宿主串口必须同步切换（`rfid_config_t.baudrate` 与现场配置一起改）。
+ * 同样不在 `rfid_init` 里自动调用（P4-18）。
+ *
+ * @param baud 目标波特率（9600/19200/38400/57600/115200）
+ * @return WD_OK 成功；其余为负的错误码
+ */
+wd_error_t rfid_set_baudrate(int baud);
+
+/**
  * P4-12：按 UHF 手册组请求帧（**纯函数**：不碰串口、不读全局状态，便于单测）。
  *
  * 帧格式：`Len(1) | Adr(1) | Cmd(1) | Data(...) | CRC_LSB | CRC_MSB`，
