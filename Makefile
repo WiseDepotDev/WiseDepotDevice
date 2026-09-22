@@ -50,7 +50,7 @@ TEST_TARGET = bin/test_runner
 # 必须在"目标特定变量"生效后再展开，因此开启二次展开（下面写成 $$(...)）。
 .SECONDEXPANSION:
 
-.PHONY: all debug release clean check test check-all check-asan check-tsan check-mqtt check-layers check-hygiene check-deps directories coverage install uninstall format format-check lint help
+.PHONY: all debug release clean check test check-all check-asan check-tsan check-mqtt check-layers check-hygiene check-deps directories coverage install uninstall format format-check format-delta lint help
 
 all: debug
 
@@ -207,10 +207,21 @@ format:
 	$(CLANG_FORMAT) -i $(FORMAT_FILES)
 	@echo "clang-format 已就地格式化 $(words $(FORMAT_FILES)) 个文件"
 
+# format-check 是**咨询项，不阻断**（决策 9B，2026-02-27）：
+#   实测三种配置下的全仓违规数——现有配置（BreakBeforeBraces: Attach）1720 处 / 70 文件、
+#   Allman 3077 处、函数换行+控制语句附着 2012 处——**没有任何单一配置能让它变绿**，
+#   而"全量 clang-format 一次"会产生巨型 diff，需要单独排期（见 docs/standards/基线记录.md 决策 9 与 §65）。
+#   因此它**不在 check-all / make all 里**，只作为提示；同时保留两条要求：
+#     ① 新增/改动代码不得新增违规（用 `git -C . diff` 选文件后与 HEAD 版本对比违规数，见 tools/format-delta.sh）；
+#     ② 一旦执行全量格式化，必须作为纯格式提交并配 .git-blame-ignore-revs。
 format-check:
 	@command -v $(CLANG_FORMAT) >/dev/null 2>&1 || { \
 	  echo "缺失: $(CLANG_FORMAT)（提示见 make format）"; exit 1; }
 	$(CLANG_FORMAT) --dry-run -Werror $(FORMAT_FILES)
+
+# 只检查"本次改动过的文件"是否比 HEAD 版本多出格式违规（咨询项，退出码非 0 不代表门禁失败）
+format-delta:
+	@bash tools/format-delta.sh
 
 lint:
 	@command -v $(CLANG_TIDY) >/dev/null 2>&1 || { \
@@ -231,7 +242,8 @@ help:
 	@echo "  make check         单元测试；check-all = check+layers+hygiene+asan+tsan"
 	@echo "  make check-asan    ASan+UBSan；check-tsan = TSan；check-mqtt = 真实 broker 集成"
 	@echo "  make check-hygiene 日志文案/独白注释/Doxygen 门禁；check-layers 分层围栏"
-	@echo "  make format        clang-format 就地格式化；format-check 只校验"
+	@echo "  make format        clang-format 就地格式化；format-check 只校验（**咨询项，不阻断**，见决策 9）"
+	@echo "  make format-delta  只看本次改动文件有没有比 HEAD 多出格式违规（新增代码不得加债）"
 	@echo "  make lint          clang-tidy（仅 error 阻断）"
 	@echo "  make coverage      lcov 覆盖率；install/uninstall 安装到 DESTDIR"
 
