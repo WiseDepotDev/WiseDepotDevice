@@ -171,17 +171,19 @@ static void upload_report(const inventory_report_t *report, const char *task_id)
     char *json = inventory_report_to_json(report, task_id);
     if (!json) return;
 
-    /* 决策 8A：MQTT 与 HTTP 用**同一个**信封请求体（packet_type = RFID_DATA_UPLOAD）。
-     * 前提是服务端消费侧已具备解包能力（MqttReportListener → common/protocol/EnvelopeUnwrapper，
-     * 提交 49ad14d）；服务端对无信封报文仍走兼容分支并记 deprecated=true。
-     * 签名串仍是 METHOD+URI+query，与请求体无关。
-     * 信封化失败时降级为扁平报文，不静默改写。 */
+    /* 决策 8A + 决策 3：MQTT 与 HTTP 用**同一个**信封请求体（packet_type = RFID_DATA_UPLOAD）。
+     * 服务端消费侧已具备解包能力（MqttReportListener → common/protocol/EnvelopeUnwrapper），
+     * 且按决策 3 已删除无信封兼容分支——信封化失败即不发（走缓存重试），不再降级发扁平报文。
+     * 签名串仍是 METHOD+URI+query，与请求体无关。 */
     char request_id[WD_ENVELOPE_REQUEST_ID_CAP] = {0};
     char *enveloped = envelope_wrap_request("RFID_DATA_UPLOAD", json, request_id, sizeof(request_id));
     if (enveloped == NULL) {
-        LOG_WARN("上报报文信封化失败，降级为扁平报文（服务端会记 deprecated=true）");
+        LOG_ERROR("上报报文信封化失败，改为缓存重试（决策 3：三端只支持统一信封）");
+        xfree(json);
+        inventory_cache_save(report);
+        return;
     }
-    const char *body_to_send = (enveloped != NULL) ? enveloped : json;
+    const char *body_to_send = enveloped;
 
     // Try MQTT first
     if (service_config.mqtt_topic && mqtt_client_is_connected()) {

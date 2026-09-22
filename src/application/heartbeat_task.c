@@ -70,13 +70,15 @@ void heartbeat_task_execute(void *ctx) {
              cfg->device_id, cpu, mem);
 
     /* P4-19 请求侧信封化：后端 DeviceController#receiveHeartbeat 的 @ApiPacketType 即 DEVICE_HEARTBEAT。
-     * 只包装「带 JSON 体」的两种调用；无 Token 走的 query 形式本来就没有请求体，保持原样。 */
+     * 只包装「带 JSON 体」的两种调用；无 Token 走的 query 形式本来就没有请求体，保持原样。
+     * 决策 3：信封化失败即中止本次心跳（服务端不再接受扁平体），下个周期自然重试。 */
     char request_id[WD_ENVELOPE_REQUEST_ID_CAP] = {0};
     char *enveloped = envelope_wrap_request("DEVICE_HEARTBEAT", body, request_id, sizeof(request_id));
     if (enveloped == NULL) {
-        LOG_WARN("心跳请求信封化失败，降级为扁平请求体（服务端会记 deprecated=true）");
+        LOG_ERROR("心跳请求信封化失败，本次心跳中止（决策 3：三端只支持统一信封）");
+        return;
     }
-    const char *body_to_send = (enveloped != NULL) ? enveloped : body;
+    const char *body_to_send = enveloped;
     
     http_response_t *res = NULL;
     

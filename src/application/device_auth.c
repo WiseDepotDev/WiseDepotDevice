@@ -122,13 +122,16 @@ wd_error_t device_register(void) {
              DEVICE_VERSION);
 
     /* P4-19 请求侧信封化：后端 DeviceController#createDevice 的 @ApiPacketType 即 DEVICE_CREATE。
-     * 信封只改请求体，签名串仍是 METHOD+URI+query，不受影响。 */
+     * 信封只改请求体，签名串仍是 METHOD+URI+query，不受影响。
+     * 决策 3（三端只支持最新形状）：服务端已删除无信封兼容分支，因此**不能**再降级发扁平体，
+     * 信封化失败即中止本次请求（否则服务端会以 400 + VAL-REQUEST-1001 拒绝）。 */
     char request_id[WD_ENVELOPE_REQUEST_ID_CAP] = {0};
     char *enveloped = envelope_wrap_request("DEVICE_CREATE", body, request_id, sizeof(request_id));
     if (enveloped == NULL) {
-        LOG_WARN("注册请求信封化失败，降级为扁平请求体（服务端会记 deprecated=true）");
+        LOG_ERROR("注册请求信封化失败，请求中止（决策 3：三端只支持统一信封）");
+        return WD_ERR_GENERAL;
     }
-    const char *body_to_send = (enveloped != NULL) ? enveloped : body;
+    const char *body_to_send = enveloped;
 
     // Generate Signature
     char timestamp[20];
@@ -276,13 +279,15 @@ wd_error_t device_refresh_token(void) {
     snprintf(body, sizeof(body), "{\"refreshToken\": \"%s\"}", g_refresh_token);
 
     /* P4-19 请求侧信封化。AuthController#refreshToken 未标注 @ApiPacketType，
-     * 服务端响应侧此时固定为 UNKNOWN，请求侧按 schema「未知类型固定 UNKNOWN」保持一致。 */
+     * 服务端响应侧此时固定为 UNKNOWN，请求侧按 schema「未知类型固定 UNKNOWN」保持一致。
+     * 决策 3：信封化失败即中止（服务端不再接受扁平体）。 */
     char request_id[WD_ENVELOPE_REQUEST_ID_CAP] = {0};
     char *enveloped = envelope_wrap_request("UNKNOWN", body, request_id, sizeof(request_id));
     if (enveloped == NULL) {
-        LOG_WARN("令牌刷新请求信封化失败，降级为扁平请求体（服务端会记 deprecated=true）");
+        LOG_ERROR("令牌刷新请求信封化失败，请求中止（决策 3：三端只支持统一信封）");
+        return WD_ERR_GENERAL;
     }
-    const char *body_to_send = (enveloped != NULL) ? enveloped : body;
+    const char *body_to_send = enveloped;
 
     char header_request_id[192];
     const char *headers[1];
