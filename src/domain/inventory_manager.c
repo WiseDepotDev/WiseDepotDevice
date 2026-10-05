@@ -319,8 +319,18 @@ char *inventory_cache_load(void) {
         fclose(f);
         return NULL;
     }
-    fread(content, 1, fsize, f);
-    content[fsize] = '\0';
+    /*
+     * 同 `log_service.c`：返回值必须处理（glibc 2.43 + `-Werror`），
+     * 且短读时不能把未初始化的尾巴当正文交给调用方。
+     */
+    size_t got = fread(content, 1, (size_t)fsize, f);
+    if (got == 0) {
+        LOG_WARN("缓存文件读不出内容：%s", CACHE_FILE);
+        xfree(content);
+        fclose(f);
+        return NULL;
+    }
+    content[got] = '\0';
     
     fclose(f);
     return content;
