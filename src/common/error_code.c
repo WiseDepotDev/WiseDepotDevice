@@ -47,8 +47,6 @@ static const wd_error_info_t WD_ERROR_TABLE[] = {
     { WD_VAL_PARAM_AUTH_VERIFICATION_ID_EMPTY, "verificationId字段为空", 422 },
     { WD_VAL_PARAM_AUTH_PIN_EMPTY           , "pin字段为空", 422 },
     { WD_VAL_PARAM_AUTH_ACCESS_TOKEN_EMPTY  , "accessToken字段为空", 422 },
-    { WD_VAL_PARAM_AUTH_CAPTCHA_ID_EMPTY    , "captchaId字段为空", 422 },
-    { WD_VAL_PARAM_AUTH_CAPTCHA_CODE_EMPTY  , "captchaCode字段为空", 422 },
     { WD_VAL_FORMAT_AUTH_CARD_UUID_ERROR    , "cardUuid格式错误", 422 },
     { WD_VAL_PARAM_USER_ID_EMPTY            , "userId字段为空", 422 },
     { WD_VAL_PARAM_USER_PASSWORD_EMPTY      , "password字段为空", 422 },
@@ -59,6 +57,13 @@ static const wd_error_info_t WD_ERROR_TABLE[] = {
     { WD_SYS_IO_OSS_UPLOAD_ERROR            , "上传文件到MinIO失败", 500 },
     { WD_SYS_IO_OSS_DELETE_ERROR            , "删除MinIO文件失败", 500 },
     { WD_VAL_CONFLICT_PERMISSION_CODE_EXISTS, "权限编码已存在", 409 },
+    { WD_HUMAN_TOKEN_REQUIRED               , "缺少人机验证票据", 422 },
+    { WD_HUMAN_TOKEN_INVALID                , "人机验证票据无效或已使用", 400 },
+    { WD_HUMAN_CHALLENGE_REQUIRED           , "缺少人机验证挑战", 422 },
+    { WD_HUMAN_CHALLENGE_EXPIRED            , "人机验证挑战已过期，请重新验证", 400 },
+    { WD_HUMAN_PURPOSE_INVALID              , "人机验证用途不合法", 422 },
+    { WD_HUMAN_SIGNATURE_INVALID            , "设备签名校验失败", 400 },
+    { WD_HUMAN_POW_INSUFFICIENT             , "计算量证明不达标", 400 },
 };
 
 const wd_error_info_t *wd_error_lookup(const char *code) {
