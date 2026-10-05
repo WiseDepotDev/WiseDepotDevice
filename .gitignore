@@ -26,3 +26,11 @@ wise-device.dat
 .vscode/
 .DS_Store
 Thumbs.db
+
+# ===== 多配置构建目录（obj-asan / obj-coverage / obj-release / obj-tsan）=====
+obj-*/
+
+# ===== 临时目录与编辑器残留 =====
+.tmp*/
+*.orig
+*.rej

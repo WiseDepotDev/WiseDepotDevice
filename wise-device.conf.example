@@ -24,15 +24,15 @@
 # 说明：MQTT 口令、加密密钥与签名密钥在源码内**没有任何默认值**（STD-SEC-01），
 # 缺失时对应能力会被显式拒绝（签名请求直接中止并记 ERROR），不会退化成固定密钥。
 #
-# 本环境（业务机 10.0.0.7）的取值，供 systemd 注入参考：
-#   WISE_SERVER_URL=http://10.0.0.7:8080
-#   MQTT_HOST=10.0.0.7   MQTT_PORT=1883
+# 部署环境示例（SERVER_HOST = 承载服务端应用与中间件的业务机地址），供 systemd 注入参考：
+#   WISE_SERVER_URL=http://SERVER_HOST:8080
+#   MQTT_HOST=SERVER_HOST   MQTT_PORT=1883
 # 业务机同时承载服务端应用与中间件（MySQL/Redis/MinIO/MQTT），因此设备端只需认这一个地址。
 
 # ---- 服务端 ----
 # 设备注册 / 心跳 / 巡检上报的目标地址
-# 本环境指向业务机 wd-local-serv（10.0.0.7），该机同时运行服务端应用与中间件
-server_url=http://10.0.0.11:8080
+# 部署时替换为业务机地址（该机同时运行服务端应用与中间件）
+server_url=http://SERVER_HOST:8080
 
 # 设备唯一标识（不填则取主机名）
 device_id=wise-device-001
