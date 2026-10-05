@@ -57,8 +57,20 @@ static void process_upload_queue(const wd_config_t *cfg) {
                     fclose(fp);
                     continue;
                 }
-                fread(buffer, 1, fsize, fp);
-                buffer[fsize] = '\0';
+                /*
+                 * 读多少算多少，并**按实际读到长度收尾**：
+                 * `fread` 的返回值必须处理（glibc 2.43 起带 warn_unused_result，
+                 * 而本仓开着 -Werror）；语义上更不能忽略 —— 短读时后面的字节是未初始化的，
+                 * 却按 fsize 当正文上传，等于把垃圾发给服务端。
+                 */
+                size_t got = fread(buffer, 1, (size_t)fsize, fp);
+                if (got == 0) {
+                    LOG_WARN("日志文件读不出内容，跳过：%s", dir->d_name);
+                    xfree(buffer);
+                    fclose(fp);
+                    continue;
+                }
+                buffer[got] = '\0';
                 
                 // Construct JSON payload
                 // { "deviceId": "...", "logContent": "..." }

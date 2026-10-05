@@ -162,7 +162,14 @@ static void shutdown_watcher(void *ctx) {
 
 void handle_crash(int sig) {
     const char *msg = "[CRITICAL] Crash detected! Signal caught.\n";
-    write(STDERR_FILENO, msg, strlen(msg));
+    /*
+     * 崩溃处理里往 stderr 直接写：这里是日志系统都可能已经不可用的最后一步，
+     * 所以只做"尽力而为"—— 但返回值必须显式处理（glibc 2.43 起 `write` 带
+     * warn_unused_result，而本仓开着 -Werror；同时也不该假装写成功了）。
+     * 写不出去也没别的办法，继续按默认动作把信号重新抛出去。
+     */
+    ssize_t ignored = write(STDERR_FILENO, msg, strlen(msg));
+    (void)ignored;
     signal(sig, SIG_DFL);
     raise(sig);
 }
