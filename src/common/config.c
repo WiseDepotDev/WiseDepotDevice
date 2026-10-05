@@ -15,6 +15,7 @@
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
+#include <errno.h>
 #include <unistd.h>
 #ifdef __linux__
 #include <sys/utsname.h>
@@ -608,8 +609,23 @@ wd_error_t config_secure_delete(const char *file_path) {
     
     for (int i = 0; i < 3; i++) {
         lseek(fd, 0, SEEK_SET);
-        for (off_t w = 0; w < len; w += sizeof(buf)) {
-            write(fd, buf, (len - w > (off_t)sizeof(buf)) ? sizeof(buf) : (size_t)(len - w));
+        for (off_t w = 0; w < len; w += (off_t)sizeof(buf)) {
+            size_t chunk = (len - w > (off_t)sizeof(buf)) ? sizeof(buf) : (size_t)(len - w);
+            ssize_t written = write(fd, buf, chunk);
+            /*
+             * 必须处理返回值（不是"为了消警告"）：
+             * glibc 2.43 起 `write` 声明了 warn_unused_result，而本仓开着 -Werror，
+             * 忽略返回值直接编译失败（RPi5 / Ubuntu 26.04 实测）。
+             * 语义上也该说清：这是**删除前的覆写**，写失败只记录告警，
+             * 不能因此中止 —— 否则文件反而删不掉（比写不进去更糟）。
+             */
+            if (written < 0) {
+                LOG_WARN("覆写待删除文件失败，仍继续删除：%s (%s)", file_path, strerror(errno));
+                break;
+            }
+            if ((size_t)written < chunk) {
+                break; /* 短写：继续按剩余长度重试没有意义 */
+            }
         }
         fsync(fd);
     }
